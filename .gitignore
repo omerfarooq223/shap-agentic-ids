@@ -1,0 +1,28 @@
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints/
+.pytest_cache/
+
+# Data
+data/
+*.csv
+*.pcap
+*.parquet
+
+# Models & Logs
+models/
+*.pkl
+*.joblib
+*.log
+*.sqlite
+*.db
+
+# Secrets
+.env
+.env.local
+
+# OS
+.DS_Store
