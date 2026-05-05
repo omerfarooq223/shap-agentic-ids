@@ -26,3 +26,7 @@ models/
 
 # OS
 .DS_Store
+
+# Internal
+learning_resources/
+docs/
