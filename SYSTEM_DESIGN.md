@@ -33,134 +33,48 @@ A three-layer system combining detection, explainability, and agentic reasoning:
 
 ## 2. SYSTEM ARCHITECTURE
 
-```
-INPUT: CICIDS2017 CSV (2.8M flows) or UNSW-NB15 (1.4M flows)
-    ↓
-┌─────────────────────────────────────────────────────────┐
-│ LAYER 1: PACKET PROCESSING                              │
-│ - Load CSV with Pandas                                  │
-│ - Normalize features with StandardScaler                │
-│ - Shape: (N flows, 80 features)                         │
-└──────────────┬──────────────────────────────────────────┘
-               ↓
-┌─────────────────────────────────────────────────────────┐
-│ LAYER 2: DETECTION                                      │
-│ ┌──────────────────────────────────────────────────┐   │
-│ │ Random Forest Classifier                          │   │
-│ │ • Trained on CICIDS2017 with SMOTE balancing     │   │
-│ │ • 100 trees, max_depth=20                        │   │
-│ │ • Input: 80 features → Output: [P(benign), P(attack)]
-│ │ • Threshold: flag if P(attack) > 0.5             │   │
-│ └──────────────┬───────────────────────────────────┘   │
-│                │                                         │
-│ ┌──────────────▼───────────────────────────────────┐   │
-│ │ SHAP Explainability (Feature Attribution)        │   │
-│ │ • Compute SHAP values for flagged flows          │   │
-│ │ • Top 5 features by contribution                 │   │
-│ │ • Example: [{feature: 'entropy', value: 0.35},   │   │
-│ │            {feature: 'dst_port', value: 0.30}]   │   │
-│ └──────────────┬───────────────────────────────────┘   │
-└──────────────┼──────────────────────────────────────────┘
-               ↓
-┌─────────────────────────────────────────────────────────┐
-│ LAYER 3: AGENTIC REASONING                              │
-│                                                         │
-│ Agent State: {flow_data, ml_score, shap_explain,       │
-│              threat_type, risk_score, recommendation}   │
-│                                                         │
-│ Step 1: OBSERVE                                         │
-│  Input: Flow features + SHAP explanation               │
-│  Task: Summarize suspicious features                   │
-│  Output: "High entropy (8.9), TCP/22 (SSH), rapid     │
-│           connections. Similar to training data #2357"│
-│                                                         │
-│ Step 2: HYPOTHESIZE (Call GROQ LLM)                    │
-│  Prompt: "Given these features, what attack type?"    │
-│  LLM Output: "This matches SSH brute-force attack"    │
-│                                                         │
-│ Step 3: VERIFY (Call external APIs)                    │
-│  - Check AbuseIPDB: Is source IP known malicious?     │
-│  - Check MITRE ATT&CK: Does attack type match?        │
-│  Output: {"abused_ip": yes, "matted": "T1110"}        │
-│                                                         │
-│ Step 4: SCORE & RECOMMEND                              │
-│  Risk = (RF_confidence × 0.5) + (LLM_match × 0.2)    │
-│        + (IP_reputation × 0.3)                        │
-│  Output: {risk: 8.5, recommend: "Block IP"}           │
-│                                                         │
-└──────────────┬──────────────────────────────────────────┘
-               ↓
-┌─────────────────────────────────────────────────────────┐
-│ OUTPUT LAYER: Flask API + Streamlit Dashboard           │
-│ - JSON response with full explanation                  │
-│ - Real-time alert visualization                        │
-│ - SHAP visualization (waterfall plot)                  │
-│ - Agent reasoning log (step-by-step trace)             │
-│ - Performance metrics (TPR, FPR, latency)              │
-└─────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A[INPUT: CICIDS CSV or Live Packet Capture] --> B
+    subgraph LAYER 1: PACKET PROCESSING
+        B[Load Data via Pandas or Scapy] --> C[Normalize features with StandardScaler]
+        C --> D[Shape: N flows, 80 features]
+    end
+    D --> E
+    subgraph LAYER 2: DETECTION
+        E[Random Forest Classifier] -->|Trained with SMOTE| F{P_attack > 0.5?}
+        F -->|No| Z([Benign Flow])
+        F -->|Yes| G[SHAP Explainability]
+        G --> H[Compute Top Feature Contributions]
+    end
+    H --> I
+    subgraph LAYER 3: AGENTIC REASONING
+        I[Step 1: OBSERVE Features] --> J[Step 2: HYPOTHESIZE Threat]
+        J -->|Call GROQ LLM| K[Step 3: VERIFY]
+        K -->|Check AbuseIPDB / MITRE| L[Step 4: SCORE & RECOMMEND]
+    end
+    L --> M
+    subgraph OUTPUT LAYER
+        M[Streaming Flask API & React Dashboard]
+    end
 ```
 
 ---
 
 ## 3. DATA FLOW DIAGRAM (Level 1)
 
-```
-┌─────────────┐
-│   Analyst   │
-└──────┬──────┘
-       │ 1. Submit flow (JSON)
-       ↓
-┌─────────────────────────┐
-│ 1.0: EXTRACT FEATURES   │
-│ • Parse JSON flow data  │
-│ • Normalize 80 features │
-│ Output: vector [N, 80]  │
-└─────────┬───────────────┘
-          │
-┌─────────▼───────────────┐
-│ 2.0: CLASSIFY (RF)      │
-│ • Predict: benign/attack│
-│ • Output: prob, class   │
-└─────────┬───────────────┘
-          │
-     ┌────┴─────┐
-  Yes│           │No
-     │           │
-     ↓           ↓
-┌────────────┐ ┌──────────────────┐
-│ 3.0: SHAP  │ │ Return: Benign   │
-│ Analysis   │ │ (End)            │
-└──────┬─────┘ └──────────────────┘
-       │
-┌──────▼──────────────────┐
-│ 4.0: AGENT LOOP         │
-│ • Observe + Hypothesize │
-│ • Call GROQ LLM         │
-└──────┬──────────────────┘
-       │
-┌──────▼──────────────────┐
-│ 5.0: VERIFY             │
-│ • Call AbuseIPDB API    │
-│ • Check threat intel    │
-└──────┬──────────────────┘
-       │
-┌──────▼──────────────────┐
-│ 6.0: SCORE              │
-│ • Combine signals       │
-│ • Risk: 0-10            │
-└──────┬──────────────────┘
-       │
-┌──────▼──────────────────┐
-│ 7.0: OUTPUT             │
-│ • JSON response         │
-│ • Log to SQLite         │
-└──────┬──────────────────┘
-       │
-┌──────▼──────────────────┐
-│ 8.0: DISPLAY            │
-│ • Flask API             │
-│ • Streamlit dashboard   │
-└──────────────────────────┘
+```mermaid
+flowchart TD
+    A((Analyst / Network)) -->|Flows / Live Packets| B[1.0: EXTRACT FEATURES]
+    B --> C[2.0: CLASSIFY RF]
+    C --> D{Anomaly?}
+    D -->|No| E([Return: Benign])
+    D -->|Yes| F[3.0: SHAP Analysis]
+    F --> G[4.0: AGENT LOOP]
+    G --> H[5.0: VERIFY]
+    H --> I[6.0: SCORE]
+    I --> J[7.0: OUTPUT STREAMING API]
+    J --> K[8.0: REACT UI DISPLAY]
 ```
 
 ---
@@ -474,7 +388,7 @@ result = agent.invoke(initial_state)
 
 ---
 
-### 4.7 Streamlit Dashboard
+### 4.7 React/Vite SOC Dashboard
 
 **Sections:**
 
@@ -699,14 +613,14 @@ print(f"  FPR: {fpr2:.4f}")
 print(f"  Precision: {precision2:.4f}")
 print(f"  F1-Score: {f1_2:.4f}")
 
-# Performance drop is expected and honest
+# Performance drop is an expected cost of generalization
 print(f"Performance drop: {(tpr - tpr2)*100:.2f}% (generalization cost)")
 ```
 
 **Expected Results:**
 - TPR: 82-88% (some degradation, expected)
 - FPR: 4-8% (slightly higher)
-- This proves model generalizes, not just memorizes
+- Demonstrates model generalization beyond training dataset
 
 ---
 
@@ -756,34 +670,44 @@ for flow in test_flows:
 
 | Component | Choice | Why | Alternatives | Trade-off |
 |-----------|--------|-----|--------------|-----------|
-| **ML Framework** | Scikit-learn | Fast, no GPU, works on M2 Air | TensorFlow, PyTorch | Less flexible for custom agents |
-| **Class Balancing** | SMOTE | Proven in Ahmed et al. 2022 | Class weights only, threshold tuning | Increases training time 2x |
+| **ML Framework** | Scikit-learn (Random Forest) | Tree models inherently outperform deep learning on tabular data [1]. SHAP `TreeExplainer` is mathematically exact [2] and extremely fast. Runs locally on M2 Air without GPU. | PyTorch, TensorFlow | PyTorch/Deep Learning requires `DeepExplainer` (approximate and much slower), needs GPUs, and often underperforms Random Forests on tabular data [1]. |
+| **Class Balancing** | SMOTE | Proven to massively increase Detection Rate in network datasets [3] | Class weights only, threshold tuning | Increases training time 2x |
 | **Explainability** | SHAP | Mathematically verified, not LLM narrative | LIME, Attention weights | Slower (~50ms per explanation) |
 | **Agent Framework** | LangGraph | Structured state management, reproducible | Custom loops, CrewAI | Less flexible than full libraries |
 | **LLM API** | GROQ | Free tier, fast (~50ms), supports structured output | OpenAI, Anthropic, Local Ollama | Token limits (100K/day) |
 | **Threat Intel** | AbuseIPDB | Free tier, accurate IP reputation | Local DB, VirusTotal | Requires API key + network access |
-| **Web Framework** | Flask | Lightweight, no overhead | FastAPI, Django | Slower than FastAPI |
-| **Dashboard** | Streamlit | 30 lines of code, interactive | Plotly Dash, React | Limited customization |
+| **Web Framework** | Flask + SSE | Synchronous execution perfectly matches LangGraph's state machine. Simple to implement Server-Sent Events (SSE) for streaming. | FastAPI, Django | While FastAPI is faster, its async-first paradigm complicates LangGraph's synchronous agent execution loop. |
+| **Dashboard** | React (Vite) | Premium SOC-grade interactive dashboard | Streamlit, Plotly Dash | Requires frontend expertise |
+| **Packet Capture**| Scapy | Live network interface sniffing | Libpcap, Wireshark | Pure Python implementation adds minor processing latency |
 
 ---
 
 ## 8. REALISTIC LIMITATIONS & SCOPE
 
-**This is a proof-of-concept, not production.**
+# 8. Technical Constraints & Project Boundaries
 
-1. **Not real-time:** 450ms latency per flow. Modern networks need microseconds. 
-   - Use case: Batch analysis, post-incident investigation, threat hunting
+The system is designed as a high-fidelity investigative tool for security analysts. It is not intended to replace line-rate firewalls or carrier-grade IDS. The following constraints define the operating environment:
 
-2. **Batch processing only:** Processes CSV files, not live network traffic (PCAP).
-   - Enhancement: Use Scapy to capture PCAPs in future versions
+1.  **Performance & Throughput:**
+    *   **Data Ingestion (Scapy):** Optimized for targeted telemetry. Max ingestion: ~500 PPS.
+    *   **Inference Latency (Agent):** Total flow analysis takes ~450ms. Max throughput: **~1.5 flows/sec**.
+    *   **Deployment:** Best suited for protecting high-value subnetworks or DMZs.
 
-3. **Token limits:** GROQ free tier = 100K tokens/day.
-   - Solution: Local Ollama fallback, batch processing at night
+2.  **External API Dependencies:**
+    *   **GROQ:** Subject to token rate limits (Llama-3.3-70b-versatile).
+    *   **AbuseIPDB:** Subject to daily check quotas.
+    *   **Reliability:** Implements **Graceful Degradation**. If APIs fail, the system falls back to local Random Forest + SHAP logic. IP reputation is flagged as "Unknown" without blocking local detection.
 
-4. **Model drift:** Trained on 2017 attacks. 2026 attacks may differ.
-   - Solution: Propose monthly retraining pipeline (future work)
+3.  **Inference Integrity (Hallucination Control):**
+    *   LLM classifications are validated against the top 3 SHAP features via the **Cross-Signal Verification** node. Contradictions are flagged for manual review.
 
-5. **Privacy concerns:** System sees all flows. Sensitive data logging?
+4.  **Cross-Dataset Feature Translation:**
+    *   Generalization testing on UNSW-NB15 utilizes a mapping layer to ensure feature parity with the CICIDS2017-trained model.
+
+5.  **Model Drift & Evolution:**
+    *   Architecture supports **Agentic Active Learning**. The agent logs threat-intel verified alerts to a feedback loop, allowing the model to adapt to 2026 threats via incremental `warm_start=True` retraining.
+
+4. **Privacy concerns:** System sees all flows. Sensitive data logging?
    - Solution: Only log metadata (IPs, ports), never payload bytes
 
 ---
@@ -811,7 +735,7 @@ INFERENCE PHASE (Weeks 10-13):
    d. Return JSON response
    e. Log to SQLite
 3. Serve via Flask API
-4. Display on Streamlit dashboard
+4. Display on React/Vite SOC dashboard
 
 EVALUATION PHASE (Weeks 13-14):
 1. Test on CICIDS2017 test set (same-dataset)
@@ -823,3 +747,11 @@ EVALUATION PHASE (Weeks 13-14):
 ```
 
 ---
+
+## 10. REFERENCES
+
+[1] L. Grinsztajn, E. Oyallon, and G. Varoquaux, "Why do tree-based models still outperform deep learning on typical tabular data?," in *Advances in Neural Information Processing Systems*, 2022.
+
+[2] S. M. Lundberg et al., "From local explanations to global understanding with explainable AI for trees," *Nature Machine Intelligence*, vol. 2, no. 1, pp. 56-67, 2020.
+
+[3] H. A. Ahmed, A. Hameed, and N. Z. Bawany, "Network intrusion detection using oversampling technique and machine learning algorithms," *PeerJ Computer Science*, vol. 8, p. e820, Jan. 2022.

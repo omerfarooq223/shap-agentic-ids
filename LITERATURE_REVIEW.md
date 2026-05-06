@@ -88,7 +88,7 @@ No published work combines:
 3. **LLM narrative generation** (explain results in English)
 4. **Tested on cross-dataset evaluation** (proof of generalization)
 
-This project fills that gap.
+Our proposed architecture addresses this gap.
 
 ---
 
