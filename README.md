@@ -1,28 +1,171 @@
-# SHAP-Explained Agentic IDS
+# 🛡️ SHAP-Explained Agentic IDS
 
-An Agent-Based Network Intrusion Detection System (IDS) that combines Machine Learning (Random Forest), SHAP explainability, and Agentic Reasoning (LangGraph + GROQ).
+### *Transforming Network Security with Explainable AI & Agentic Reasoning*
 
-## Project Structure
-- `README.md` - This file
-- `PROJECT_PROPOSAL_FINAL.md` - Detailed project proposal
-- `LITERATURE_REVIEW.md` - Review of current state-of-the-art
-- `SYSTEM_DESIGN.md` - Technical architecture
+![Version](https://img.shields.io/badge/version-1.0.0--prototype-blue)
+![Python](https://img.shields.io/badge/python-3.11+-green)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
-## Initial Setup
-### Prerequisites
-- Python 3.11+
-- virtualenv or conda
-
-### Installation
-1. Install dependencies:
-   \`\`\`bash
-   pip install -r requirements.txt
-   \`\`\`
-2. Configure API keys in \`.env\`:
-   \`\`\`bash
-   GROQ_API_KEY=your-key-here
-   ABUSEIPDB_API_KEY=your-key-here
-   \`\`\`
+This project implements a **Hybrid Intrusion Detection System (IDS)** that bridges the gap between high-performance machine learning and human-readable security analysis. By combining **Random Forest** detection with **SHAP** (SHapley Additive exPlanations) and a **LangGraph-driven Agent**, the system doesn't just block threats—it explains *why* they were flagged.
 
 ---
 
+## ⚡ TL;DR
+
+**What it does:** Flags suspicious network flows using ML, then *explains why* using SHAP and checks IP reputation via AbuseIPDB.
+
+**Example output:**
+```
+Flow 192.168.1.50 → 8.8.8.8:443 flagged as ANOMALY
+ML Confidence: 0.92
+Top features: Entropy=8.9 (+0.35), Dst_Port=443 (+0.20), Duration=3s (-0.05)
+IP Reputation: 45/100 abuse score (suspicious)
+MITRE ATT&CK: T1190 (Exploit Public-Facing Application)
+Risk Score: 7.8/10 | Action: BLOCK
+```
+
+---
+
+## 📋 System Requirements
+
+- **Python 3.11+**
+- **RAM:** 4GB minimum (8GB recommended for full CICIDS2017)
+- **Disk:** 500MB free (for CICIDS2017 dataset ~300MB + models)
+- **OS:** macOS, Linux, or WSL
+
+---
+
+## 🏗️ System Architecture
+
+```mermaid
+graph TD
+    %% Node Definitions
+    subgraph Ingestion ["📥 Data & Capture"]
+        PCAP[Live Packet Capture / CSV]
+        MLD[Data Mapping & Cleaning]
+    end
+
+    subgraph Detection ["🧠 Intelligence Layer"]
+        RF[Random Forest Classifier]
+        SMOTE[SMOTE Class Balancing]
+        SHAP[SHAP TreeExplainer]
+    end
+
+    subgraph Reasoning ["🤖 Agentic Layer (LangGraph)"]
+        Agent[GROQ Llama-3.3 Agent]
+        Intel[Threat Intel: AbuseIPDB]
+        Verify[MITRE ATT&CK Mapping]
+    end
+
+    %% Connections
+    PCAP --> MLD
+    MLD --> RF
+    RF -->|Flagged Anomalies| SHAP
+    SHAP -->|Feature Attribution| Agent
+    Agent <==>|Verify & Context| Intel
+    Agent -->|Actionable Alert| Dashboard[React SOC Dashboard]
+
+    %% Styling
+    classDef ingestion fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
+    classDef detection fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px;
+    classDef reasoning fill:#f3e5f5,stroke:#4a148c,stroke-width:2px;
+    classDef external fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+
+    class PCAP,MLD ingestion;
+    class RF,SMOTE,SHAP detection;
+    class Agent reasoning;
+    class Intel,Verify,Dashboard external;
+```
+
+---
+
+## 🚀 Key Features
+
+*   **Explainable ML:** Uses SHAP to provide mathematical proof for every alert, showing exactly which network features (ports, duration, byte counts) triggered the detection.
+*   **Agentic Verification:** A structured LangGraph agent uses **GROQ (Llama 3.3)** to verify alerts against external threat intelligence (AbuseIPDB) and map them to **MITRE ATT&CK** tactics.
+*   **Academic Rigor:** Built with class-imbalance handling (SMOTE) and validated using cross-dataset evaluation (CICIDS2017 & UNSW-NB15).
+*   **High-Density Dashboard:** A premium React-based Security Operations Center (SOC) dashboard for real-time monitoring and investigative deep-dives.
+
+---
+
+## 🛠️ Installation & Setup
+
+### 1. Environment Setup
+```bash
+# Create and activate virtual environment
+python3 -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 1.5 Verify Installation ✅
+```bash
+# Run quick tests to ensure everything is installed correctly
+pytest tests/test_data_loader.py -v
+
+# Expected output:
+# ✓ test_cicids_data_exists PASSED
+# ✓ test_cicids_feature_count PASSED
+# ✓ All feature mappings valid
+```
+
+If tests fail, re-run: `pip install -r requirements.txt --upgrade`
+
+### 2. Configuration
+Create a `.env` file in the root directory:
+```bash
+GROQ_API_KEY=your_groq_api_key
+ABUSEIPDB_API_KEY=your_abuseipdb_api_key
+```
+
+### 3. Training the Intelligence Pipeline
+To train the detection model and initialize the explainability layer:
+```bash
+# Merges raw datasets and applies stratified sampling
+python src/merge_data.py
+
+# Trains the Random Forest + Scaler + SHAP Explainer
+python src/train.py
+```
+
+---
+
+## 📂 Documentation Stack
+
+For detailed deep-dives into the project, refer to the following documents:
+
+*   📄 **[Project Proposal](PROJECT_PROPOSAL_FINAL.md)**: High-level objectives and academic scope.
+*   📚 **[Literature Review](LITERATURE_REVIEW.md)**: Analysis of the current IDS landscape.
+*   📐 **[System Design](SYSTEM_DESIGN.md)**: Detailed architecture and technical constraints.
+*   ⚡ **[Quick Start Guide](QUICK_START.md)**: Commands for running the server and dashboard.
+
+---
+
+## ⚖️ Status & Roadmap
+
+**Phase 1-3: Complete ✅**
+- [x] **Proposal:** Problem statement, objectives, timeline
+- [x] **Literature Review:** 10+ sources, gap analysis, research justification
+- [x] **System Design:** Architecture diagrams, threat model, evaluation plan
+
+**Phase 4: Prototype (Due Week 9) 🔵**
+- [x] Random Forest model training with SMOTE
+- [x] SHAP explainability layer
+- [ ] Flask API `/detect` endpoint
+- [x] Test suite with 18+ core logic tests
+- [x] GitHub commits showing incremental progress
+
+**Phase 5-7: Implementation (Weeks 10-15) ⏳**
+- [ ] Full end-to-end pipeline (data → model → SHAP → agent → API)
+- [ ] LangGraph agent with threat classification
+- [ ] AbuseIPDB + MITRE ATT&CK integration
+- [ ] Cross-dataset evaluation (CICIDS2017 + UNSW-NB15)
+- [ ] React/Vite SOC dashboard
+- [ ] Technical report + presentation
+
+---
+
+**Maintained by:** Muhammad Omer Farooq  
+**Academic Context:** AI-374 Information Security (2026)

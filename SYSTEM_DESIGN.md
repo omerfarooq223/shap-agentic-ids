@@ -552,42 +552,83 @@ if threat not in VALID_THREATS:
 
 ## 6. EVALUATION METHODOLOGY
 
+### 6.0 Metrics Definition
+
+**Key Metrics:**
+- **TPR (True Positive Rate / Sensitivity):** % of real attacks correctly detected
+  - Formula: TP / (TP + FN)
+  - Target: >90% (catch most attacks)
+
+- **FPR (False Positive Rate):** % of benign flows incorrectly flagged
+  - Formula: FP / (FP + TN)
+  - Target: <5% (minimize alert fatigue)
+
+- **Precision:** Of all flagged flows, what % are real attacks
+  - Formula: TP / (TP + FP)
+  - Target: >85% (high confidence in alerts)
+
+- **F1-Score:** Harmonic mean of Precision and Recall
+  - Formula: 2 × (Precision × Recall) / (Precision + Recall)
+  - Target: >0.88 (balanced performance)
+
+**Threshold Selection:**
+- Default threshold for anomaly detection: P(attack) > 0.5
+- Rationale: RF produces probability estimates [0,1]; 0.5 = neutral point
+- Adjustable: Can be tuned per deployment (stricter = higher precision, lower recall)
+
 ### 6.1 CICIDS2017 Evaluation (Train + Test Same Dataset)
 
 ```python
-# Split CICIDS2017
+# Split CICIDS2017 (80:20 stratified)
 X_train_full, X_test_cicids, y_train_full, y_test_cicids = train_test_split(
     X_cicids, y_cicids, test_size=0.2, stratify=y_cicids, random_state=42
 )
 
-# Apply SMOTE to training only
-smote = SMOTE(random_state=42)
+# Apply SMOTE to training only (prevent data leakage)
+smote = SMOTE(sampling_strategy=0.25, random_state=42)  # Conservative sampling
 X_train_balanced, y_train_balanced = smote.fit_resample(X_train_full, y_train_full)
 
-# Train & evaluate
+# Train Random Forest
+rf = RandomForestClassifier(
+    n_estimators=100,
+    max_depth=20,
+    class_weight='balanced',
+    random_state=42,
+    n_jobs=-1
+)
 rf.fit(X_train_balanced, y_train_balanced)
-y_pred_cicids = rf.predict(X_test_cicids)
 
-# Metrics
-from sklearn.metrics import confusion_matrix, recall_score, precision_score, f1_score
+# Evaluate
+y_pred_cicids = rf.predict(X_test_cicids)
+y_probs_cicids = rf.predict_proba(X_test_cicids)[:, 1]
+
+# Calculate metrics
+from sklearn.metrics import confusion_matrix, recall_score, precision_score, f1_score, roc_auc_score
 
 tn, fp, fn, tp = confusion_matrix(y_test_cicids, y_pred_cicids).ravel()
 tpr = tp / (tp + fn)  # Sensitivity
 fpr = fp / (fp + tn)  # False positive rate
 precision = tp / (tp + fp)
 f1 = f1_score(y_test_cicids, y_pred_cicids)
+auc_roc = roc_auc_score(y_test_cicids, y_probs_cicids)
 
-print(f"CICIDS2017 Test Set:")
-print(f"  TPR (Recall): {tpr:.4f}")
-print(f"  FPR: {fpr:.4f}")
-print(f"  Precision: {precision:.4f}")
-print(f"  F1-Score: {f1:.4f}")
+print(f"CICIDS2017 Test Set Metrics:")
+print(f"  TPR (Sensitivity):  {tpr:.4f}  (Target: >0.90)")
+print(f"  FPR:                {fpr:.4f}  (Target: <0.05)")
+print(f"  Precision:          {precision:.4f}  (Target: >0.85)")
+print(f"  F1-Score:           {f1:.4f}  (Target: >0.88)")
+print(f"  AUC-ROC:            {auc_roc:.4f}  (Target: >0.95)")
+print(f"  Confusion Matrix:")
+print(f"    TN={tn}, FP={fp}")
+print(f"    FN={fn}, TP={tp}")
 ```
 
 **Expected Results:**
-- TPR: 93-95% (catches most attacks)
-- FPR: 2-5% (few false alarms)
-- Precision: 85-90%
+- TPR: 93-95% (catches 93-95% of attacks)
+- FPR: 2-5% (false alarms on 2-5% of benign traffic)
+- Precision: 85-90% (high confidence in alerts)
+- F1-Score: 0.88-0.92
+- AUC-ROC: 0.96+ (excellent discriminative ability)
 
 ---
 
@@ -595,26 +636,35 @@ print(f"  F1-Score: {f1:.4f}")
 
 ```python
 # Train on CICIDS2017, test on UNSW-NB15
-X_train = X_cicids_train_balanced  # Already trained above
-y_test_unsw = y_unsw_test
+# This validates that model learned general attack patterns, not memorized signatures
 
-# Evaluate on UNSW-NB15 (different network, different attacks)
-y_pred_unsw = rf.predict(X_unsw_test)
+X_unsw_test, y_unsw_test = load_unsw_nb15()
+X_unsw_scaled = scaler.transform(X_unsw_test)  # Use SAME scaler trained on CICIDS2017
 
-tn2, fp2, fn2, tp2 = confusion_matrix(y_test_unsw, y_pred_unsw).ravel()
+# Evaluate on UNSW-NB15 (different network, different attack types)
+y_pred_unsw = rf.predict(X_unsw_scaled)
+y_probs_unsw = rf.predict_proba(X_unsw_scaled)[:, 1]
+
+# Calculate metrics
+tn2, fp2, fn2, tp2 = confusion_matrix(y_unsw_test, y_pred_unsw).ravel()
 tpr2 = tp2 / (tp2 + fn2)
 fpr2 = fp2 / (fp2 + tn2)
 precision2 = tp2 / (tp2 + fp2)
-f1_2 = f1_score(y_test_unsw, y_pred_unsw)
+f1_2 = f1_score(y_unsw_test, y_pred_unsw)
+auc_roc2 = roc_auc_score(y_unsw_test, y_probs_unsw)
 
-print(f"UNSW-NB15 Test Set (Cross-Dataset):")
-print(f"  TPR: {tpr2:.4f}")
-print(f"  FPR: {fpr2:.4f}")
-print(f"  Precision: {precision2:.4f}")
-print(f"  F1-Score: {f1_2:.4f}")
+print(f"UNSW-NB15 Test Set Metrics (Cross-Dataset):")
+print(f"  TPR:                {tpr2:.4f}  (Expected: 0.80-0.90)")
+print(f"  FPR:                {fpr2:.4f}  (Expected: <0.10)")
+print(f"  Precision:          {precision2:.4f}  (Expected: >0.75)")
+print(f"  F1-Score:           {f1_2:.4f}  (Expected: >0.80)")
+print(f"  AUC-ROC:            {auc_roc2:.4f}")
 
-# Performance drop is an expected cost of generalization
-print(f"Performance drop: {(tpr - tpr2)*100:.2f}% (generalization cost)")
+# Report generalization gap
+generalization_gap = (tpr - tpr2) * 100
+print(f"\nGeneralization Analysis:")
+print(f"  Performance drop:   {generalization_gap:.2f}% TPR")
+print(f"  Interpretation:     {'Minor (acceptable)' if generalization_gap < 10 else 'Significant (document in report)'}")
 ```
 
 **Expected Results:**

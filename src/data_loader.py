@@ -63,11 +63,19 @@ def load_unsw_nb15(filepath=config.DATA_DIR / "UNSW_NB15.csv"):
         # Rename available columns
         df = df.rename(columns=mapping)
         
-        # Fill missing columns with zeros to avoid crashing
-        for col in config.NUMERIC_FEATURES:
-            if col not in df.columns:
-                df[col] = 0
-                
+        # Validate that critical columns are present after mapping - DO NOT SILENTLY FILL WITH ZEROS
+        missing_cols = [col for col in config.NUMERIC_FEATURES if col not in df.columns]
+        if missing_cols:
+            logger.error(f"CRITICAL: {len(missing_cols)} required columns missing from UNSW-NB15 dataset")
+            logger.error(f"Missing columns (first 5): {missing_cols[:5]}")
+            raise ValueError(
+                f"Cannot map UNSW-NB15 to CICIDS2017 schema. "
+                f"Missing {len(missing_cols)} columns. "
+                f"Dataset may use incompatible feature names. "
+                f"Please check column names in source CSV."
+            )
+        
+        logger.info(f"✓ UNSW-NB15 successfully mapped to {len(config.NUMERIC_FEATURES)} CICIDS2017 features")
         generate_dataset_statistics(df, "UNSW-NB15 (Mapped)")
         return df
     else:

@@ -199,38 +199,47 @@ This proves the model generalizes to unseen attack types.
 
 ---
 
-## 7. Project Boundaries & Operational Scope
+## 8. Risk Analysis & Mitigation Strategy
 
-This project is designed as a **high-fidelity investigative IDS** rather than a high-throughput network gateway. We acknowledge the following operational boundaries:
+| Risk | Impact | Likelihood | Mitigation |
+|------|--------|------------|-----------|
+| **GROQ API token limit exceeded** | Cannot classify threats via LLM | Medium | Use 10% sampling strategy; implement local Ollama fallback; cache explanations in SQLite |
+| **AbuseIPDB API downtime** | Cannot verify IP reputation | Low | Graceful degradation: use only SHAP + LLM if API unavailable; log for manual review |
+| **UNSW-NB15 column mismatch** | Feature mapping fails silently | Medium | Add validation checks in data_loader.py; raise exceptions instead of silent zeros |
+| **Cross-dataset performance drop** | Model accuracy <70% on UNSW-NB15 | Medium | Document degradation; report per-attack-type metrics; justify with literature (different network patterns) |
+| **LLM hallucination** | False threat classification | Medium | Verify with 2/3 signals (SHAP + AbuseIPDB + MITRE); never trust LLM alone |
+| **SMOTE over-sampling artifacts** | Model learns synthetic patterns | Low | Use conservative sampling_strategy=0.25 (per Ahmed et al. 2022); validate on original test set |
+| **Dataset imbalance remains** | High false negative rate | Low | Apply class_weight='balanced' in RandomForest as secondary safeguard |
+| **No real CICIDS2017 data on GitHub** | Tests skip on instructor's machine | Low | Provide synthetic mock data; clearly document how to obtain real dataset |
 
-*   **Inference Throughput:** Optimized for deep analysis (~1.5 flows/sec) rather than line-rate processing.
-*   **External API Resilience:** Implements "Graceful Degradation" to handle AbuseIPDB or GROQ outages.
-*   **Evaluation Rigor:** Utilizes a Feature Translation Layer for cross-dataset validation (UNSW-NB15).
-*   **Integrity:** Employs Cross-Signal Verification to mitigate LLM hallucinations.
-
-> [!NOTE]
-> For a comprehensive breakdown of performance metrics, PPS ingestion limits, and feature mapping tables, refer to **Section 8 (Technical Constraints & Project Boundaries)** in the `SYSTEM_DESIGN.md` document.
+**Contingency Plans:**
+1. If GROQ is unavailable → Use entropy-based heuristic classifier (Port 22 + high entropy = likely SSH brute-force)
+2. If AbuseIPDB is unavailable → Skip reputation check; rely on SHAP + LLM classification
+3. If feature mapping fails → Raise ValueError immediately (don't silently corrupt data)
+4. If accuracy <60% on UNSW-NB15 → Document limitations; propose retraining on mixed dataset
 
 ---
 
-## 8. Timeline (Realistic)
+## 9. Timeline (Realistic)
 
-| Phase | Weeks | Hours | Deliverable |
-|-------|-------|-------|-------------|
-| Proposal | 1-2 | 5 | Problem + objectives (DONE) |
-| Lit Review | 3-4 | 10 | Papers + gap analysis (DONE) |
-| Design | 5-6 | 10 | Architecture + threat model (DONE) |
-| **Prototype** | **7-9** | **30** | **50% working, GitHub commits** |
-| **Implementation** | **10-13** | **40** | **Full system, testing, video** |
-| Report | 14 | 15 | Final 20-page document |
-| Viva Prep | 15 | 10 | Q&A practice |
-| **TOTAL** | | **120 hours** | |
+| Phase | Weeks | Hours | Deliverable | Status |
+|-------|-------|-------|-------------|--------|
+| Proposal | 1-2 | 5 | Problem + objectives | ✅ DONE |
+| Lit Review | 3-4 | 10 | Papers + gap analysis | ✅ DONE |
+| Design | 5-6 | 10 | Architecture + threat model | ✅ DONE |
+| **Prototype** | **7-9** | **30** | **50% working, GitHub commits** | ⏳ IN PROGRESS |
+| **Implementation** | **10-13** | **40** | **Full system, testing, video** | 🔲 PENDING |
+| Report | 14 | 15 | Final 20-page document | 🔲 PENDING |
+| Viva Prep | 15 | 10 | Q&A practice | 🔲 PENDING |
+| **TOTAL** | | **120 hours** | | |
 
 **Feasibility:** 120 hours ÷ 6 weeks = 20 hours/week. Realistic with AI assistance (Copilot for boilerplate, GROQ for LLM calls).
 
+**Commit Strategy:** 1 meaningful commit per day across weeks 7-14 = 35+ commits showing steady progress
+
 ---
 
-## 9. Alignment with Evaluation Rubric
+## 10. Alignment with Evaluation Rubric
 
 | Rubric | Our Approach | Score Potential |
 |--------|--------------|-----------------|
@@ -243,7 +252,7 @@ This project is designed as a **high-fidelity investigative IDS** rather than a 
 
 ---
 
-## 10. Academic Integrity
+## 11. Academic Integrity
 
 I will:
 - Use LLMs (GROQ, Copilot) for code assistance but retain intellectual understanding

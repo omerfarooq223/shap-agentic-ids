@@ -55,6 +55,7 @@ def get_numeric_features():
     """
     Auto-detects numerical features from the CSV header to ensure model consistency.
     Falls back to a hardcoded list if the dataset is not yet downloaded or processed.
+    Validates feature count to prevent silent data corruption.
     """
     if CICIDS_PATH.exists():
         try:
@@ -62,6 +63,16 @@ def get_numeric_features():
             df = pd.read_csv(CICIDS_PATH, nrows=1)
             # Filter out the target column
             cols = [col for col in df.columns if col != TARGET_COLUMN]
+            
+            # Validate feature count - CICIDS2017 should have ~79-80 features
+            expected_feature_count = 79
+            if len(cols) < expected_feature_count * 0.9:  # Allow 10% variance
+                logger.warning(
+                    f"WARNING: Expected ~{expected_feature_count} features, "
+                    f"but found only {len(cols)}. Dataset may be incomplete."
+                )
+            
+            logger.info(f"Auto-detected {len(cols)} numeric features from CICIDS2017 CSV header")
             return cols
         except Exception as e:
             logger.error(f"Error reading features from CSV: {e}")

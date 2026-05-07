@@ -32,9 +32,30 @@ Early ML-IDS systems (2015-2020) suffered from the "black box" problem: a model 
 
 Recent work addresses this through feature attribution methods. Lundberg & Lee (2017) introduced SHAP (SHapley Additive exPlanations) in their paper *"A Unified Approach to Interpreting Model Predictions"* (published in NIPS). SHAP provides mathematically rigorous explanations: for each prediction, it shows which features contributed most (positively or negatively) to the decision. For an IDS, this means: *"This flow was flagged because Entropy=8.9 (high, +0.45 impact), Dst Port=22 (+0.30 impact), Duration=3sec (-0.10 impact). Total score: 0.92 → Attack."*
 
-Ribeiro et al. (2016) proposed LIME (Local Interpretable Model-agnostic Explanations) as an alternative. LIME works by perturbing input features and observing output changes. Both SHAP and LIME are now industry-standard for explainable security systems.
+**Practical Example: SHAP in Practice**
 
-**The Key Advantage:** Unlike LLMs (which generate narrative text without guarantees of accuracy), SHAP provides mathematically verified explanations directly from the model's decision logic. For security, this is critical.
+```
+Flow: 192.168.1.50 → 8.8.8.8:22 (SSH)
+
+SHAP Explanation:
+┌──────────────────────────────────────────────┐
+│ Feature         | Value  | Impact | Cumulative │
+├──────────────────────────────────────────────┤
+│ Entropy         | 8.9    | +0.35  | 0.35       │
+│ Dst_Port        | 22     | +0.30  | 0.65       │
+│ Fwd_Packet_Len  | 500    | +0.15  | 0.80       │
+│ Flow_Duration   | 3.2s   | -0.05  | 0.75       │
+│ IAT_Mean        | 0.1s   | +0.17  | 0.92       │
+└──────────────────────────────────────────────┘
+
+Final Prediction: 0.92 → ANOMALY (above threshold 0.5)
+
+Interpretation: High entropy + SSH port + rapid packets = suspicious pattern
+Matches: Brute-force attack (consistent with training data)
+Recommendation: Block source IP, log for investigation
+```
+
+[We adopt this approach directly in src/train.py - see TreeExplainer configuration]
 
 ---
 

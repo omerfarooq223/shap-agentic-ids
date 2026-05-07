@@ -1,0 +1,301 @@
+"""
+Pytest configuration and fixtures for testing suite.
+Provides shared test data and mock objects.
+"""
+
+import pytest
+import numpy as np
+import pandas as pd
+from pathlib import Path
+
+
+@pytest.fixture(scope="session")
+def project_root():
+    """Return the project root directory."""
+    return Path(__file__).parent.parent
+
+
+@pytest.fixture(scope="session")
+def data_dir(project_root):
+    """Return the data directory path."""
+    return project_root / "data"
+
+
+@pytest.fixture(scope="session")
+def models_dir(project_root):
+    """Return the models directory path."""
+    return project_root / "models"
+
+
+@pytest.fixture(scope="session")
+def dataset_dir():
+    """Return the UNSW-NB15 dataset directory. Skip if not present."""
+    path = Path(__file__).parent.parent / "data" / "UNSW_NB15"
+    if not path.exists():
+        pytest.skip(f"UNSW-NB15 dataset not found at {path}. Cross-dataset tests will be skipped.")
+    return path
+
+
+@pytest.fixture
+def sample_cicids_flow():
+    """
+    Return a complete sample CICIDS2017 flow with all required features.
+    Dynamically generates values for all NUMERIC_FEATURES to ensure consistency.
+    """
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    
+    from src import config
+    
+    # Create flow with all numeric features from config
+    flow = {}
+    for feature in config.NUMERIC_FEATURES:
+        # Generate realistic values - mostly low with some variation
+        flow[feature] = np.random.normal(loc=100, scale=50)
+    
+    # Add required string fields
+    flow['src_ip'] = '192.168.1.100'
+    flow['dst_ip'] = '192.168.1.50'
+    flow['dst_port'] = 80
+    
+    return flow
+
+
+@pytest.fixture
+def sample_unsw_flow():
+    """Return a sample UNSW-NB15 flow."""
+    return {
+        "srcip": "192.168.1.1",
+        "sport": 1234,
+        "dstip": "192.168.1.100",
+        "dsport": 80,
+        "proto": 6,  # TCP
+        "state": "CON",
+        "dur": 1.5,
+        "sbytes": 500,
+        "dbytes": 1000,
+        "sttl": 64,
+        "dttl": 64,
+        "sloss": 0,
+        "dloss": 0,
+        "service": "http",
+        "Sload": 100.0,
+        "Dload": 200.0,
+        "Spkts": 10,
+        "Dpkts": 15,
+        "swin": 65535,
+        "dwin": 65535,
+        "stcpb": 1000000,
+        "dtcpb": 2000000,
+        "smeansz": 50,
+        "dmeansz": 67,
+        "trans_depth": 1,
+        "res_bdy_len": 5000,
+        "Sjit": 0.1,
+        "Djit": 0.2,
+        "Sintpkt": 100.0,
+        "Dintpkt": 75.0,
+        "tcprtt": 10.0,
+        "synack": 5.0,
+        "ackdat": 5.0,
+        "is_sm_ips_ports": 0,
+        "ct_state_ttl": 1,
+        "ct_flw_http_mthd": 1,
+        "is_ftp_login": 0,
+        "ct_ftp_cmd": 0,
+        "ct_srv_src": 2,
+        "ct_srv_dst": 3,
+        "ct_dst_ltm": 5,
+        "ct_src_ltm": 4,
+        "ct_src_dport_ltm": 2,
+        "ct_dst_sport_ltm": 3,
+        "ct_dst_src_ltm": 1,
+        "attack_cat": "Normal",
+        "Label": 0,
+    }
+
+
+@pytest.fixture
+def sample_benign_flows():
+    """Return multiple sample benign flows."""
+    flows = []
+    for i in range(10):
+        flow = {
+            "src_ip": f"192.168.1.{100 + i}",
+            "dst_ip": f"192.168.1.{50 + i}",
+            "dst_port": 80 + i,
+            "Flow Duration": 1000.0 + i * 100,
+            "Total Fwd Packets": 10.0 + i,
+            "Total Backward Packets": 8.0 + i,
+            "Total Length of Fwd Packets": 500.0 + i * 50,
+            "Total Length of Bwd Packets": 400.0 + i * 50,
+            "Fwd Packet Length Max": 100.0 + i * 10,
+            "Fwd Packet Length Min": 20.0 + i,
+            "Fwd Packet Length Mean": 50.0 + i * 5,
+            "Fwd Packet Length Std": 25.0 + i * 2,
+            "Bwd Packet Length Max": 90.0 + i * 10,
+            "Bwd Packet Length Min": 30.0 + i,
+            "Bwd Packet Length Mean": 50.0 + i * 5,
+            "Bwd Packet Length Std": 20.0 + i * 2,
+            "Flow Bytes/s": 900.0 + i * 100,
+            "Flow Packets/s": 18.0 + i,
+            "Flow IAT Mean": 50.0 + i * 5,
+            "Flow IAT Std": 10.0 + i,
+            "Flow IAT Max": 100.0 + i * 10,
+            "Flow IAT Min": 10.0 + i,
+            "Fwd IAT Total": 90.0 + i * 10,
+            "Fwd IAT Mean": 10.0 + i,
+            "Fwd IAT Std": 5.0 + i,
+            "Fwd IAT Max": 20.0 + i * 2,
+            "Fwd IAT Min": 1.0 + i * 0.1,
+            "Bwd IAT Total": 70.0 + i * 10,
+            "Bwd IAT Mean": 10.0 + i,
+            "Bwd IAT Std": 4.0 + i,
+            "Bwd IAT Max": 18.0 + i * 2,
+            "Bwd IAT Min": 2.0 + i * 0.1,
+            "Fwd PSH Flags": 1.0,
+            "Bwd PSH Flags": 1.0,
+            "Fwd URG Flags": 0.0,
+            "Bwd URG Flags": 0.0,
+            "Fwd Header Length": 320.0,
+            "Bwd Header Length": 320.0,
+            "Fwd Packets/s": 10.0 + i,
+            "Bwd Packets/s": 8.0 + i,
+            "Min Packet Length": 20.0 + i,
+            "Max Packet Length": 100.0 + i * 10,
+            "Packet Length Mean": 56.0 + i * 5,
+            "Packet Length Std": 25.0 + i * 2,
+            "Packet Length Variance": 625.0 + i * 50,
+            "FIN Flag Count": 1.0,
+            "SYN Flag Count": 1.0,
+            "RST Flag Count": 0.0,
+            "PSH Flag Count": 2.0,
+            "ACK Flag Count": 15.0 + i,
+            "URG Flag Count": 0.0,
+            "CWE Flag Count": 0.0,
+            "ECE Flag Count": 0.0,
+            "Down/Up Ratio": 0.8 + i * 0.02,
+            "Average Packet Size": 56.0 + i * 5,
+            "Avg Fwd Segment Size": 50.0 + i * 5,
+            "Avg Bwd Segment Size": 50.0 + i * 5,
+            "Fwd Header Length.1": 320.0,
+            "Fwd Avg Bytes/Bulk": 0.0,
+            "Fwd Avg Packets/Bulk": 0.0,
+            "Fwd Avg Bulk Rate": 0.0,
+            "Bwd Avg Bytes/Bulk": 0.0,
+            "Bwd Avg Packets/Bulk": 0.0,
+            "Bwd Avg Bulk Rate": 0.0,
+            "Subflow Fwd Packets": 10.0 + i,
+            "Subflow Fwd Bytes": 500.0 + i * 50,
+            "Subflow Bwd Packets": 8.0 + i,
+            "Subflow Bwd Bytes": 400.0 + i * 50,
+            "Init Fwd Win Bytes": 65535.0,
+            "Init Bwd Win Bytes": 65535.0,
+            "Fwd Act Data Pkts": 8.0 + i,
+            "Fwd Seg Size Min": 20.0 + i,
+            "Bwd Act Data Pkts": 6.0 + i,
+            "Bwd Seg Size Min": 30.0 + i,
+            "Fwd UrgCnt": 0.0,
+            "Bwd UrgCnt": 0.0,
+            "Fwd ECE": 0.0,
+            "Bwd ECE": 0.0,
+        }
+        flows.append(flow)
+    return flows
+
+
+@pytest.fixture
+def sample_attack_flows():
+    """Return multiple sample attack flows."""
+    flows = []
+    attack_types = [
+        {"dur": 0.001, "Flow Packets/s": 1000.0, "Total Fwd Packets": 500.0},  # DDoS
+        {"dur": 5.0, "Flow Bytes/s": 50.0, "Total Fwd Packets": 3.0},  # Port Scan
+        {"Flow IAT Min": 0.001, "Flow IAT Mean": 0.01},  # Brute Force
+    ]
+    
+    for i, attack in enumerate(attack_types):
+        for j in range(3):
+            flow = {
+                "src_ip": f"203.0.113.{100 + i * 10 + j}",
+                "dst_ip": f"192.168.1.{50 + i}",
+                "dst_port": 22 + i,
+                "Flow Duration": attack.get("dur", 1000.0),
+                "Total Fwd Packets": attack.get("Total Fwd Packets", 10.0),
+                "Total Backward Packets": 1.0 + j,
+                "Total Length of Fwd Packets": 50000.0 + i * 10000,
+                "Total Length of Bwd Packets": 100.0,
+                "Fwd Packet Length Max": 1500.0,
+                "Fwd Packet Length Min": 40.0,
+                "Fwd Packet Length Mean": 500.0,
+                "Fwd Packet Length Std": 400.0,
+                "Bwd Packet Length Max": 100.0,
+                "Bwd Packet Length Min": 20.0,
+                "Bwd Packet Length Mean": 50.0,
+                "Bwd Packet Length Std": 30.0,
+                "Flow Bytes/s": attack.get("Flow Bytes/s", 900.0),
+                "Flow Packets/s": attack.get("Flow Packets/s", 18.0),
+                "Flow IAT Mean": attack.get("Flow IAT Mean", 50.0),
+                "Flow IAT Std": 0.001,
+                "Flow IAT Max": 1.0,
+                "Flow IAT Min": attack.get("Flow IAT Min", 10.0),
+                "Fwd IAT Total": 1.0,
+                "Fwd IAT Mean": 0.1,
+                "Fwd IAT Std": 0.05,
+                "Fwd IAT Max": 1.0,
+                "Fwd IAT Min": 0.01,
+                "Bwd IAT Total": 1.0,
+                "Bwd IAT Mean": 1.0,
+                "Bwd IAT Std": 0.0,
+                "Bwd IAT Max": 1.0,
+                "Bwd IAT Min": 1.0,
+                "Fwd PSH Flags": 0.0,
+                "Bwd PSH Flags": 0.0,
+                "Fwd URG Flags": 0.0,
+                "Bwd URG Flags": 0.0,
+                "Fwd Header Length": 320.0,
+                "Bwd Header Length": 60.0,
+                "Fwd Packets/s": 500.0,
+                "Bwd Packets/s": 0.5,
+                "Min Packet Length": 40.0,
+                "Max Packet Length": 1500.0,
+                "Packet Length Mean": 750.0,
+                "Packet Length Std": 600.0,
+                "Packet Length Variance": 360000.0,
+                "FIN Flag Count": 0.0,
+                "SYN Flag Count": 100.0,
+                "RST Flag Count": 10.0,
+                "PSH Flag Count": 0.0,
+                "ACK Flag Count": 1.0,
+                "URG Flag Count": 0.0,
+                "CWE Flag Count": 0.0,
+                "ECE Flag Count": 0.0,
+                "Down/Up Ratio": 0.01,
+                "Average Packet Size": 750.0,
+                "Avg Fwd Segment Size": 500.0,
+                "Avg Bwd Segment Size": 50.0,
+                "Fwd Header Length.1": 320.0,
+                "Fwd Avg Bytes/Bulk": 0.0,
+                "Fwd Avg Packets/Bulk": 0.0,
+                "Fwd Avg Bulk Rate": 0.0,
+                "Bwd Avg Bytes/Bulk": 0.0,
+                "Bwd Avg Packets/Bulk": 0.0,
+                "Bwd Avg Bulk Rate": 0.0,
+                "Subflow Fwd Packets": attack.get("Total Fwd Packets", 10.0),
+                "Subflow Fwd Bytes": 50000.0,
+                "Subflow Bwd Packets": 1.0,
+                "Subflow Bwd Bytes": 100.0,
+                "Init Fwd Win Bytes": 65535.0,
+                "Init Bwd Win Bytes": 1024.0,
+                "Fwd Act Data Pkts": attack.get("Total Fwd Packets", 10.0),
+                "Fwd Seg Size Min": 40.0,
+                "Bwd Act Data Pkts": 1.0,
+                "Bwd Seg Size Min": 20.0,
+                "Fwd UrgCnt": 0.0,
+                "Bwd UrgCnt": 0.0,
+                "Fwd ECE": 0.0,
+                "Bwd ECE": 0.0,
+            }
+            flows.append(flow)
+    return flows
