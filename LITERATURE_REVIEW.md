@@ -34,26 +34,19 @@ Recent work addresses this through feature attribution methods. Lundberg & Lee (
 
 **Practical Example: SHAP in Practice**
 
-```
-Flow: 192.168.1.50 → 8.8.8.8:22 (SSH)
+| Feature | Value | Impact | Cumulative |
+|:---|:---|:---|:---|
+| **Entropy** | 8.9 | +0.35 | 0.35 |
+| **Dst_Port** | 22 | +0.30 | 0.65 |
+| **Fwd_Packet_Len** | 500 | +0.15 | 0.80 |
+| **Flow_Duration** | 3.2s | -0.05 | 0.75 |
+| **IAT_Mean** | 0.1s | +0.17 | 0.92 |
 
-SHAP Explanation:
-┌──────────────────────────────────────────────┐
-│ Feature         | Value  | Impact | Cumulative │
-├──────────────────────────────────────────────┤
-│ Entropy         | 8.9    | +0.35  | 0.35       │
-│ Dst_Port        | 22     | +0.30  | 0.65       │
-│ Fwd_Packet_Len  | 500    | +0.15  | 0.80       │
-│ Flow_Duration   | 3.2s   | -0.05  | 0.75       │
-│ IAT_Mean        | 0.1s   | +0.17  | 0.92       │
-└──────────────────────────────────────────────┘
+**Final Prediction: 0.92 → ANOMALY** (above threshold 0.5)
 
-Final Prediction: 0.92 → ANOMALY (above threshold 0.5)
-
-Interpretation: High entropy + SSH port + rapid packets = suspicious pattern
-Matches: Brute-force attack (consistent with training data)
-Recommendation: Block source IP, log for investigation
-```
+*   **Interpretation:** High entropy + SSH port + rapid packets = suspicious pattern.
+*   **Matches:** Brute-force attack (consistent with training data).
+*   **Recommendation:** Block source IP, log for investigation.
 
 [We adopt this approach directly in src/train.py - see TreeExplainer configuration]
 

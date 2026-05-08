@@ -59,6 +59,12 @@ def get_numeric_features():
     """
     if CICIDS_PATH.exists():
         try:
+            # Check if file is not empty (sanity check)
+            file_size = CICIDS_PATH.stat().st_size
+            if file_size == 0:
+                logger.warning(f"CSV file exists but is empty: {CICIDS_PATH}")
+                raise ValueError("CSV file is empty")
+            
             # Read only the first row to get headers (extremely fast)
             df = pd.read_csv(CICIDS_PATH, nrows=1)
             # Filter out the target column
@@ -75,7 +81,7 @@ def get_numeric_features():
             logger.info(f"Auto-detected {len(cols)} numeric features from CICIDS2017 CSV header")
             return cols
         except Exception as e:
-            logger.error(f"Error reading features from CSV: {e}")
+            logger.warning(f"Could not read features from CSV ({type(e).__name__}: {e}). Using hardcoded features.")
             
     # Fallback hardcoded features
     return [

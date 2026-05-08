@@ -38,43 +38,29 @@ Risk Score: 7.8/10 | Action: BLOCK
 ## 🏗️ System Architecture
 
 ```mermaid
-graph TD
-    %% Node Definitions
-    subgraph Ingestion ["📥 Data & Capture"]
-        PCAP[Live Packet Capture / CSV]
-        MLD[Data Mapping & Cleaning]
+graph LR
+    %% Data Phase
+    IN[📥 Data Source] --> MLD[Data Mapping]
+    
+    %% detection Phase
+    subgraph AI ["🧠 Intelligence Core"]
+        MLD --> RF[RF Detection]
+        RF --> SHAP[SHAP Explanation]
     end
 
-    subgraph Detection ["🧠 Intelligence Layer"]
-        RF[Random Forest Classifier]
-        SMOTE[SMOTE Class Balancing]
-        SHAP[SHAP TreeExplainer]
+    %% Reasoning Phase
+    subgraph Agent ["🤖 Agentic Loop"]
+        SHAP --> AG[LLM Agent]
+        AG <--> INTEL[AbuseIPDB]
     end
 
-    subgraph Reasoning ["🤖 Agentic Layer (LangGraph)"]
-        Agent[GROQ Llama-3.3 Agent]
-        Intel[Threat Intel: AbuseIPDB]
-        Verify[MITRE ATT&CK Mapping]
-    end
-
-    %% Connections
-    PCAP --> MLD
-    MLD --> RF
-    RF -->|Flagged Anomalies| SHAP
-    SHAP -->|Feature Attribution| Agent
-    Agent <==>|Verify & Context| Intel
-    Agent -->|Actionable Alert| Dashboard[React SOC Dashboard]
+    %% Output
+    AG --> ALERT[📢 Actionable Alert]
 
     %% Styling
-    classDef ingestion fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
-    classDef detection fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px;
-    classDef reasoning fill:#f3e5f5,stroke:#4a148c,stroke-width:2px;
-    classDef external fill:#fff3e0,stroke:#e65100,stroke-width:2px;
-
-    class PCAP,MLD ingestion;
-    class RF,SMOTE,SHAP detection;
-    class Agent reasoning;
-    class Intel,Verify,Dashboard external;
+    style AI fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    style Agent fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    style ALERT fill:#ffebee,stroke:#c62828,stroke-width:2px
 ```
 
 ---

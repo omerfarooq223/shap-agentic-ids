@@ -732,9 +732,7 @@ for flow in test_flows:
 
 ---
 
-## 8. REALISTIC LIMITATIONS & SCOPE
-
-# 8. Technical Constraints & Project Boundaries
+## 8. TECHNICAL CONSTRAINTS & PROJECT BOUNDARIES
 
 The system is designed as a high-fidelity investigative tool for security analysts. It is not intended to replace line-rate firewalls or carrier-grade IDS. The following constraints define the operating environment:
 
@@ -757,8 +755,8 @@ The system is designed as a high-fidelity investigative tool for security analys
 5.  **Model Drift & Evolution:**
     *   Architecture supports **Agentic Active Learning**. The agent logs threat-intel verified alerts to a feedback loop, allowing the model to adapt to 2026 threats via incremental `warm_start=True` retraining.
 
-4. **Privacy concerns:** System sees all flows. Sensitive data logging?
-   - Solution: Only log metadata (IPs, ports), never payload bytes
+6. **Privacy & Data Security:**
+   - Only log metadata (IPs, ports); never store full packet payload bytes to ensure compliance.
 
 ---
 
