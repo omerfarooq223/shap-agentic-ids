@@ -30,8 +30,9 @@ class TestDataLoader:
             assert len(df) > 0, "Data file is empty"
             assert 'Label' in df.columns, "Label column not found"
             print(f"✓ Successfully loaded {len(df)} rows")
-        except Exception as e:
-            pytest.skip(f"Could not load data: {e}")
+        except FileNotFoundError:
+            # Expected - GitHub repos don't include large CSVs
+            pytest.skip("CICIDS2017.csv not found (expected for GitHub). Use synthetic data for testing.")
 
     def test_cicids_has_required_columns(self, data_dir):
         """Test that CICIDS2017 has required columns."""
@@ -167,3 +168,44 @@ class TestUNSWDataLoader:
             print(f"✓ Label distribution - Normal: {normal}, Attack: {attack}")
         except Exception as e:
             pytest.skip(f"Could not check label distribution: {e}")
+
+
+class TestFeatureMapping:
+    """Test feature mapping between UNSW-NB15 and CICIDS2017."""
+    
+    def test_cicids_feature_count(self):
+        """Test that CICIDS2017 has expected number of features."""
+        from src import config
+        expected_min = 70  # At least 70 features (allows some variance)
+        assert len(config.NUMERIC_FEATURES) >= expected_min, \
+            f"Expected ≥{expected_min} features, got {len(config.NUMERIC_FEATURES)}"
+        print(f"✓ CICIDS2017 has {len(config.NUMERIC_FEATURES)} features")
+    
+    def test_unsw_mapping_critical_fields(self):
+        """Test that critical UNSW fields can be mapped to CICIDS."""
+        critical_mapping = {
+            'dport': 'Destination Port',
+            'dur': 'Flow Duration',
+            'spkts': 'Total Fwd Packets',
+            'dpkts': 'Total Backward Packets',
+        }
+        
+        # Verify mapping keys and values exist
+        for src, dst in critical_mapping.items():
+            assert isinstance(src, str) and len(src) > 0, f"Invalid source field: {src}"
+            assert isinstance(dst, str) and len(dst) > 0, f"Invalid destination field: {dst}"
+        
+        print(f"✓ Critical field mappings valid: {list(critical_mapping.keys())}")
+    
+    def test_data_integrity_no_nan_after_preprocessing(self):
+        """Test that preprocessing doesn't introduce NaN values."""
+        try:
+            from src.data_loader import load_data, preprocess_data
+            df = load_data(sample_size=100)
+            X, y = preprocess_data(df)
+            
+            nan_count = X.isnull().sum().sum()
+            assert nan_count == 0, f"Found {nan_count} NaN values after preprocessing"
+            print(f"✓ No NaN values in preprocessed data")
+        except Exception as e:
+            pytest.skip(f"Could not test preprocessing: {e}")

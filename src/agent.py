@@ -94,7 +94,12 @@ class IDSAgent:
         for item in shap_data:
             context += f"  - {item['feature']}: {item['value']} (Impact {item['contribution']:.4f})\n"
             
+        # Initialize missing keys with safe defaults to prevent KeyErrors in later nodes
         state["observation_context"] = context
+        state["hypothesized_threat"] = "Unknown"
+        state["threat_intel"] = {"abuse_score": 0, "intel_source": "None", "zero_day_potential": False, "mitre_mapping": "N/A"}
+        state["observation"] = f"Observing flow: {flow.get('src_ip')} -> {dst_port} ({flow.get('protocol', 'TCP')})"
+        
         return state
 
     def node_hypothesize(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -176,8 +181,7 @@ Respond with EXACTLY this JSON format:
         state["threat_intel"] = {
             "abuse_score": abuse_score,
             "intel_source": intel_source,
-            "zero_day_potential": is_zero_day_potential,
-            "mitre_mapping": self._get_mitre_mapping(state["hypothesized_threat"])
+            "zero_day_potential": is_zero_day_potential
         }
         return state
 
@@ -186,13 +190,19 @@ Respond with EXACTLY this JSON format:
         logger.info("[Agent] Conclusion Step: Synthesizing final alert...")
         
         ml_conf = state.get("ml_confidence", 0)
-        abuse_score = state["threat_intel"]["abuse_score"] / 100.0
+        # Calculate final risk score (0.0 to 1.0)
+        # Using .get() for safety
+        threat_intel = state.get("threat_intel", {})
+        abuse_score = threat_intel.get("abuse_score", 0) / 100.0
         
-        # Weighted Risk Score (0-10)
         base_risk = (ml_conf * 0.6) + (abuse_score * 0.4)
         risk_score = min(10.0, base_risk * 10.0)
         
         state["risk_score"] = round(risk_score, 1)
+        
+        # Add MITRE mapping here at the conclusion
+        threat = state.get("hypothesized_threat", "Anomaly")
+        state["mitre"] = self._get_mitre_mapping(threat)
         
         if risk_score > 8.0:
             state["recommendation"] = "CRITICAL: Immediate block required."

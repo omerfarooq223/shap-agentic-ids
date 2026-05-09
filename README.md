@@ -117,6 +117,34 @@ For detailed deep-dives into the project, refer to the following documents:
 
 ---
 
+## 📂 File Structure
+
+```
+IS Project/
+├── src/                    # Core Production Logic
+│   ├── app.py              # Flask API Entry Point
+│   ├── agent.py            # Agentic reasoning pipeline (LangGraph)
+│   ├── packet_capture.py   # Live Scapy-based sniffer
+│   ├── streaming_api.py    # Real-time data pipeline
+│   ├── train.py            # Model training & SMOTE balancing
+│   ├── data_loader.py      # Data loading & Feature mapping
+│   ├── config.py           # Central system configuration
+│   └── merge_data.py       # Data cleaning pipeline
+├── scripts/                # Helper & Experimental Scripts
+│   ├── run_evaluation.py   # Cross-dataset evaluation
+│   ├── dashboard.py        # Legacy Streamlit dashboard
+│   ├── snort_comparison.py # Snort benchmark script
+│   └── hybrid_ids_comparison.py
+├── frontend/               # React + Vite SOC Dashboard (Premium UI)
+├── models/                 # Serialized RF Models & Scalers
+├── data/                   # CICIDS2017 & UNSW-NB15 datasets
+├── tests/                  # Unit, Integration & Stress Tests
+├── run_flask.py            # Main API Launcher (Root)
+└── .env.example            # Environment template
+```
+
+---
+
 ## ⚖️ Status & Roadmap
 
 **Phase 1-3: Complete ✅**
