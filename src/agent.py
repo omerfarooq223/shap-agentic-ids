@@ -14,6 +14,20 @@ class IDSAgent:
     Uses LangGraph to coordinate between ML predictions, SHAP explanations, 
     and external threat intelligence.
     """
+
+    # Domain Knowledge: Common Attack Targets
+    SENSITIVE_PORTS = {
+        21: "FTP (Plaintext Credentials)",
+        22: "SSH (Remote Management)",
+        23: "Telnet (Legacy)",
+        25: "SMTP (Mail)",
+        53: "DNS (Potential Tunneling)",
+        80: "HTTP (Web Service)",
+        443: "HTTPS (Encrypted Web)",
+        445: "SMB (File Sharing - Ransomware Vector)",
+        3389: "RDP (Remote Desktop)",
+        8080: "HTTP-Proxy"
+    }
     
     def __init__(self):
         self.client = Groq(api_key=config.GROQ_API_KEY)
@@ -64,23 +78,27 @@ class IDSAgent:
         return "analyze"
 
     def node_observe(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Step 1: Extract and format features for the LLM."""
+        """Step 1: Extract and format features with Domain Knowledge."""
         logger.info("[Agent] Observation Step: Formatting flow features...")
         flow = state.get("flow", {})
         shap_data = state.get("shap_explanation", [])
+        dst_port = flow.get('dst_port', 0)
+        
+        # Enrich port context
+        port_info = self.SENSITIVE_PORTS.get(dst_port, "General Service")
         
         # Build a clear context string for the LLM
-        context = f"Flow: {flow.get('src_ip')} -> {flow.get('dst_ip')}:{flow.get('dst_port')}\n"
+        context = f"Flow: {flow.get('src_ip')} -> {flow.get('dst_ip')}:{dst_port} ({port_info})\n"
         context += f"ML Confidence: {state.get('ml_confidence', 0):.2f}\n"
-        context += "Top SHAP Features:\n"
+        context += "Top SHAP Features (Mathematical Evidence):\n"
         for item in shap_data:
-            context += f"  - {item['feature']}: Impact {item['contribution']:.4f}\n"
+            context += f"  - {item['feature']}: {item['value']} (Impact {item['contribution']:.4f})\n"
             
         state["observation_context"] = context
         return state
 
     def node_hypothesize(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """Step 2: Ask the LLM to hypothesize the threat type based on features."""
+        """Step 2: Expert Hypothesis with Reasoning."""
         logger.info("[Agent] Hypothesis Step: Classifying threat via GROQ...")
         
         prompt = f"""You are a specialized Network Security Analyst.
@@ -88,49 +106,52 @@ Based on the following features of a flagged network flow, what is the most like
 
 {state['observation_context']}
 
-Respond with EXACTLY one of these categories:
-- DDoS
-- Port-Scan
-- Brute-Force
-- Data-Exfiltration
-- Botnet
-- Anomaly (Unknown)
-
-One word response only."""
+Respond with EXACTLY this JSON format:
+{{
+  "threat_type": "DDoS | Port-Scan | Brute-Force | Data-Exfiltration | Botnet | Anomaly",
+  "reasoning": "1-sentence justification",
+  "llm_confidence": 0.0-1.0
+}}"""
 
         try:
             response = self.client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=10
+                response_format={"type": "json_object"},
+                max_tokens=150
             )
-            state["hypothesized_threat"] = response.choices[0].message.content.strip()
+            import json
+            res_data = json.loads(response.choices[0].message.content)
+            state["hypothesized_threat"] = res_data.get("threat_type", "Anomaly")
+            state["llm_reasoning"] = res_data.get("reasoning", "Unknown reasoning")
+            state["llm_confidence"] = res_data.get("llm_confidence", 0.5)
         except Exception as e:
             logger.error(f"LLM Hypothesis failed: {e}")
-            state["hypothesized_threat"] = "Anomaly (Fallback)"
+            state["hypothesized_threat"] = "Anomaly"
+            state["llm_reasoning"] = "Fallback to generic anomaly detection due to API error."
+            state["llm_confidence"] = 0.3
             
         return state
 
     def node_verify(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Step 3: Cross-reference with Real-World Threat Intelligence.
-        Uses AbuseIPDB for public IPs and Heuristic Entropy-Checks for private IPs.
+        Step 3: Intelligence Verification & Zero-Day Conflict Detection.
         """
         import requests
         logger.info("[Agent] Verification Step: Performing Threat Intel Lookup...")
         src_ip = state.get("flow", {}).get("src_ip", "")
+        ml_conf = state.get("ml_confidence", 0)
         
-        # Default results
         abuse_score = 0
         intel_source = "None"
+        is_zero_day_potential = False
         
-        # 1. Check if it's a Public IP for AbuseIPDB
+        # 1. External Intel Check
         try:
             import ipaddress
             ip_obj = ipaddress.ip_address(src_ip)
-            is_private = ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_multicast
+            is_private = ip_obj.is_private or ip_obj.is_loopback
         except ValueError:
-            # Invalid IP format should not trigger external lookups
             is_private = True
         
         if not is_private and config.ABUSEIPDB_API_KEY:
@@ -138,27 +159,24 @@ One word response only."""
                 url = 'https://api.abuseipdb.com/api/v2/check'
                 params = {'ipAddress': src_ip, 'maxAgeInDays': '90'}
                 headers = {'Accept': 'application/json', 'Key': config.ABUSEIPDB_API_KEY}
-                
                 response = requests.get(url, params=params, headers=headers, timeout=5)
                 if response.status_code == 200:
-                    data = response.json()
-                    abuse_score = data['data']['abuseConfidenceScore']
+                    abuse_score = response.json()['data']['abuseConfidenceScore']
                     intel_source = "AbuseIPDB (Live)"
-                    logger.info(f"✓ Found IP in AbuseIPDB: Score {abuse_score}")
             except Exception as e:
-                logger.warning(f"AbuseIPDB lookup failed: {e}. Falling back to heuristics.")
+                logger.warning(f"AbuseIPDB failed: {e}")
         
-        # 2. Heuristic Fallback (Novelty Check)
-        # If score is still 0 (or private IP), check feature anomalies (entropy/port)
-        if abuse_score == 0:
-            shap_impact = sum([abs(item['contribution']) for item in state.get('shap_explanation', [])])
-            if shap_impact > 0.5: # Model is very confident in anomaly
-                abuse_score = 40 # Assign "Suspicious" heuristic score
-                intel_source = "Local Heuristic Analysis"
+        # 2. Conflict Detection (Zero-Day Logic)
+        # If ML is high (>0.90) but AbuseIPDB is clean (<10), it's a potential new threat
+        if ml_conf > 0.90 and abuse_score < 10:
+            is_zero_day_potential = True
+            logger.warning(f"⚠️ CONFLICT DETECTED: High ML confidence vs Clean IP reputation. Flagging as potential Zero-Day.")
+            abuse_score = 50 # Elevate score due to high ML confidence conflict
         
         state["threat_intel"] = {
             "abuse_score": abuse_score,
             "intel_source": intel_source,
+            "zero_day_potential": is_zero_day_potential,
             "mitre_mapping": self._get_mitre_mapping(state["hypothesized_threat"])
         }
         return state

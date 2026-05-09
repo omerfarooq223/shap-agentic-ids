@@ -21,13 +21,13 @@ A three-layer system combining detection, explainability, and agentic reasoning:
 - Identifies which 3-5 features triggered alert
 - Provides ground-truth explanation (not LLM narrative)
 
-**Layer 3: Agentic Reasoning**
-- LangGraph agent loop
-- Calls GROQ LLM to classify threat type
-- Verifies via threat intelligence APIs (AbuseIPDB)
-- Synthesizes into risk score + recommendation
+**Layer 3: Agentic Reasoning (Expert Layer)**
+- **Autonomous Routing:** Uses LangGraph to intelligently route threats based on evidence confidence.
+- **Domain-Aware Observation:** Recognizes sensitive protocols (SSH, RDP, SMB) and prioritizes high-risk ports.
+- **Zero-Day Conflict Detection:** Flags anomalies where ML confidence is high but external reputation is clean, identifying potential novel threats.
+- **RAG-Enabled Analysis:** Synthesizes SHAP mathematical evidence with LLM-based reasoning and real-time AbuseIPDB intelligence.
 
-**Innovation:** Most IDS stop at detection. Most LLM systems trust LLM output blindly. We combine SHAP (verified explanation) + Agent (structured reasoning with tool use) + LLM (natural language narration of findings).
+**Innovation:** This system moves beyond static detection by implementing **Cross-Signal Verification**. We combine SHAP (verified local explanation) with a non-linear Agent loop that can resolve conflicts between internal ML models and external intelligence—crucial for catching Zero-Day attacks that haven't been indexed by threat databases yet.
 
 ---
 

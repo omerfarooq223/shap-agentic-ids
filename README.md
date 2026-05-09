@@ -38,29 +38,17 @@ Risk Score: 7.8/10 | Action: BLOCK
 ## 🏗️ System Architecture
 
 ```mermaid
-graph LR
-    %% Data Phase
-    IN[📥 Data Source] --> MLD[Data Mapping]
-    
-    %% detection Phase
-    subgraph AI ["🧠 Intelligence Core"]
-        MLD --> RF[RF Detection]
-        RF --> SHAP[SHAP Explanation]
+flowchart TD
+    A[Data Source] --> B[ML Detection]
+    subgraph Intelligence
+        B --> C[SHAP Explanation]
+        C --> D[Agent Reasoning]
     end
-
-    %% Reasoning Phase
-    subgraph Agent ["🤖 Agentic Loop"]
-        SHAP --> AG[LLM Agent]
-        AG <--> INTEL[AbuseIPDB]
+    subgraph Verification
+        D <--> E[AbuseIPDB Intel]
+        D <--> F[MITRE Mapping]
     end
-
-    %% Output
-    AG --> ALERT[📢 Actionable Alert]
-
-    %% Styling
-    style AI fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-    style Agent fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
-    style ALERT fill:#ffebee,stroke:#c62828,stroke-width:2px
+    D --> G[Actionable Alert]
 ```
 
 ---
@@ -144,11 +132,11 @@ For detailed deep-dives into the project, refer to the following documents:
 - [x] GitHub commits showing incremental progress
 
 **Phase 5-7: Implementation (Weeks 10-15) ⏳**
-- [ ] Full end-to-end pipeline (data → model → SHAP → agent → API)
-- [ ] LangGraph agent with threat classification
-- [ ] AbuseIPDB + MITRE ATT&CK integration
+- [x] Full end-to-end pipeline (data → model → SHAP → agent → API)
+- [x] LangGraph agent with threat classification & reasoning
+- [x] AbuseIPDB + MITRE ATT&CK integration
 - [ ] Cross-dataset evaluation (CICIDS2017 + UNSW-NB15)
-- [ ] React/Vite SOC dashboard
+- [ ] React/Vite SOC dashboard (UI Polish)
 - [ ] Technical report + presentation
 
 ---
