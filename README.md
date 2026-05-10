@@ -122,8 +122,13 @@ For detailed deep-dives into the project, refer to the following documents:
 ```
 IS Project/
 ├── src/                    # Core Production Logic
-│   ├── app.py              # Flask API Entry Point
-│   ├── agent.py            # Agentic reasoning pipeline (LangGraph)
+│   ├── app.py              # Clean Flask API Factory
+│   ├── agent.py            # Agentic reasoning with Self-Correction
+│   ├── schemas.py          # Strict Pydantic Data Validation
+│   ├── services/           # Decoupled Business Logic
+│   │   ├── inference.py    # ML & SHAP Execution
+│   │   ├── geo_service.py  # Non-blocking IP Rep & Geolocation
+│   │   └── persistence.py  # Thread-safe Alert Storage
 │   ├── packet_capture.py   # Live Scapy-based sniffer
 │   ├── streaming_api.py    # Real-time data pipeline
 │   ├── train.py            # Model training & SMOTE balancing
@@ -155,19 +160,19 @@ IS Project/
 **Phase 4: Prototype (Due Week 9) 🔵**
 - [x] Random Forest model training with SMOTE
 - [x] SHAP explainability layer
-- [ ] Flask API `/detect` endpoint
-- [x] Test suite with 18+ core logic tests
+- [x] Flask API `/detect` endpoint (Refactored Factory)
+- [x] Test suite with 56 integration tests via pytest-mock
 - [x] GitHub commits showing incremental progress
 
 **Phase 5-7: Implementation (Weeks 10-15) ⏳**
 - [x] Full end-to-end pipeline (data → model → SHAP → agent → API)
-- [x] LangGraph agent with threat classification & reasoning
+- [x] LangGraph agent with self-correcting conflict resolution
 - [x] AbuseIPDB + MITRE ATT&CK integration
-- [ ] Cross-dataset evaluation (CICIDS2017 + UNSW-NB15)
-- [ ] React/Vite SOC dashboard (UI Polish)
-- [ ] Technical report + presentation
+- [x] Cross-dataset evaluation (CICIDS2017 + UNSW-NB15)
+- [x] React/Vite SOC dashboard (UI Polish)
+- [x] Technical report + presentation
 
 ---
 
-**Maintained by:** Muhammad Omer Farooq  
+**Maintained by:** Muhammad Umar Farooq  
 **Academic Context:** AI-374 Information Security (2026)

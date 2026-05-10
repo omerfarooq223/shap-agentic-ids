@@ -13,6 +13,7 @@ Routes:
 
 from flask import Blueprint, request, jsonify, Response
 import logging
+from src import config
 from src.packet_capture import StreamingFlowProcessor, LivePacketCapture
 import json
 

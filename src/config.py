@@ -46,6 +46,37 @@ CICIDS_PATH = DATA_DIR / "CICIDS2017.csv"
 # Model Paths
 RF_MODEL_PATH = MODEL_DIR / "rf_model.pkl"
 SCALER_PATH = MODEL_DIR / "scaler.pkl"
+SHAP_EXPL_PATH = MODEL_DIR / "shap_explainer.pkl"
+
+# Network / Streaming Defaults
+DEFAULT_INTERFACE = os.getenv("CAPTURE_INTERFACE", "en0")
+
+# Flask Configuration
+FLASK_PORT = int(os.getenv("FLASK_PORT", "5005"))
+FLASK_HOST = os.getenv("FLASK_HOST", "0.0.0.0")
+
+# API Timeouts
+API_TIMEOUT = int(os.getenv("API_TIMEOUT", "10"))
+MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
+
+# LLM Configuration
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+# Security
+INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY", "ids-dev-key-1337")
+
+def validate_model_artifacts():
+    """Verify that all required ML artifacts exist before system boot."""
+    missing = []
+    for path in [RF_MODEL_PATH, SCALER_PATH]:
+        if not path.exists():
+            missing.append(path.name)
+    
+    if missing:
+        logger.error(f"FATAL: Missing required model files: {', '.join(missing)}")
+        logger.error("Please run 'python src/train.py' to generate them.")
+        return False
+    return True
 
 TARGET_COLUMN = "Label"
 BENIGN_LABEL = "BENIGN"

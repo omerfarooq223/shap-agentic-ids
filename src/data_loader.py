@@ -1,11 +1,9 @@
 import pandas as pd
 import numpy as np
-from src import config
 import os
-import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src import config
+from src.config import logger
 
 
 def load_data(filepath=config.CICIDS_PATH, sample_size=None):

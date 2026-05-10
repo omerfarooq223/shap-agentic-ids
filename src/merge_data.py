@@ -2,19 +2,17 @@ import os
 import glob
 import pandas as pd
 import numpy as np
-import logging
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.config import logger
 
 def merge_and_sample_dataset():
     # Use relative paths for portability (Addressing Instructor Critique #1)
     from src import config
-    archive_dir = config.DATA_DIR / "raw"
+    archive_dir = config.DATA_DIR / "archive"
     output_path = config.CICIDS_PATH
     
     if not archive_dir.exists():
-        logger.error(f"Archive directory {archive_dir} not found. Please place raw CSVs in data/raw/")
+        logger.error(f"Archive directory {archive_dir} not found. Please place raw CSVs in data/archive/")
         return
 
     csv_files = glob.glob(os.path.join(str(archive_dir), "*.csv"))
@@ -88,9 +86,6 @@ def merge_and_sample_dataset():
     logger.info(f"Saving sampled dataset to {output_path}...")
     sample_df.to_csv(output_path, index=False)
     logger.info("✓ Merge and sample complete!")
-
-if __name__ == "__main__":
-    merge_and_sample_dataset()
 
 if __name__ == "__main__":
     merge_and_sample_dataset()

@@ -12,14 +12,15 @@ from pathlib import Path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
+print("\n" + "="*80)
+print("AGENTIC IDS - FLASK API SERVER")
+print("="*80)
+print("🚀 Initializing components... (this may take a moment for SHAP/ML models)")
+
 # Now import the app
 from src.app import app, initialize_system
 
 if __name__ == '__main__':
-    print("\n" + "="*80)
-    print("AGENTIC IDS - FLASK API SERVER")
-    print("="*80)
-    
     # Check for root privileges (required for Scapy live sniffing)
     if os.getuid() != 0:
         print("⚠️  WARNING: Not running as root (sudo).")
@@ -32,8 +33,9 @@ if __name__ == '__main__':
         sys.exit(1)
     
     # Start Flask server
-    print("\n🚀 Starting Flask server on http://0.0.0.0:5005")
+    from src import config
+    print(f"\n🚀 Starting Flask server on http://{config.FLASK_HOST}:{config.FLASK_PORT}")
     print("📊 API Documentation available at /health")
     print("\nCtrl+C to stop server\n")
     
-    app.run(host='0.0.0.0', port=5005, debug=False, use_reloader=False)
+    app.run(host=config.FLASK_HOST, port=config.FLASK_PORT, debug=False, use_reloader=False)

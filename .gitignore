@@ -30,6 +30,9 @@ models/
 # Internal
 learning_resources/
 docs/
+!docs/evaluation_results.json
+scratch/
+logs/alerts_persistence.json
 
 # Frontend
 frontend/node_modules/

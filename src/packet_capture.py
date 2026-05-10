@@ -6,7 +6,6 @@ Captures live network packets, extracts features, and feeds to detection engine.
 Supports both live capture and pcap file processing.
 """
 
-import logging
 from scapy.all import sniff, IP, TCP, UDP, ICMP, IPv6
 from scapy.layers.inet import IP
 from scapy.layers.inet6 import IPv6
@@ -15,8 +14,7 @@ import queue
 from typing import Callable, Optional, Dict, Any
 import time
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+from src.config import logger
 
 class PacketFlowExtractor:
     """

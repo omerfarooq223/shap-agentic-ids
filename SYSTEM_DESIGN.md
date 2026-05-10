@@ -223,128 +223,42 @@ top_5 = np.argsort(np.abs(shap_values))[-5:]
 
 ---
 
-### 4.5 LangGraph Agent Loop
+### 4.5 Self-Correcting Agentic Reasoning (LangGraph)
 
-**Framework:** LangGraph (open-source orchestrator for LLM agents)
-
-**Agent State:**
-```python
-from langgraph.graph import StateGraph
-
-state = {
-    "flow": {...},  # Raw flow dict
-    "ml_score": 0.92,
-    "shap_explain": [{feature, contribution}, ...],
-    "threat_type": "",  # From LLM
-    "threat_intel": {},  # From API
-    "risk_score": 0,
-    "recommendation": ""
-}
-```
+**Architecture:** Non-Linear State Graph with Conflict Resolution
 
 **Agent Workflow:**
-```python
-# Step 1: OBSERVE (no LLM call needed)
-def observe_step(state):
-    flow = state["flow"]
-    shap = state["shap_explain"]
-    observation = f"Flow {flow['src_ip']} → {flow['dst_ip']}:{flow['dst_port']}. "
-    observation += f"Flagged by ML (conf={state['ml_score']:.2f}). "
-    observation += f"Top features: {shap[0]['feature']}={shap[0]['contribution']:.2f}, {shap[1]['feature']}={shap[1]['contribution']:.2f}"
-    state["observation"] = observation
-    return state
 
-# Step 2: HYPOTHESIZE (Call GROQ LLM)
-def hypothesize_step(state):
-    prompt = f"""You are a security analyst. Analyze this network flow:
-
-{state['observation']}
-
-Based on the features, what type of attack is this most likely?
-Respond with ONE of: brute-force, port-scan, ddos, data-exfiltration, anomaly, benign
-
-Be concise. One word answer."""
-    
-    response = groq_client.chat.completions.create(
-        model="mixtral-8x7b-32768",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=10
-    )
-    state["threat_type"] = response.choices[0].message.content.strip()
-    return state
-
-# Step 3: VERIFY (Call external APIs)
-def verify_step(state):
-    threat_intel = {}
-    
-    # Check AbuseIPDB
-    src_ip = state["flow"]["src_ip"]
-    # Only check public IPs (skip RFC1918)
-    if not is_private_ip(src_ip):
-        abuse_response = abuseipdb_api.check_ip(src_ip)
-        threat_intel["abuse_score"] = abuse_response.get("abuseConfidenceScore", 0)
-    
-    # Check MITRE ATT&CK mapping (local DB or API)
-    threat_type = state["threat_type"].lower()
-    attack_mapping = {
-        "brute-force": "T1110",
-        "port-scan": "T1046",
-        "ddos": "T1498",
-        "data-exfiltration": "T1041"
-    }
-    threat_intel["mitre_tactic"] = attack_mapping.get(threat_type, "unknown")
-    
-    state["threat_intel"] = threat_intel
-    return state
-
-# Step 4: SCORE & RECOMMEND
-def score_step(state):
-    # Weighted combination
-    ml_confidence = state["ml_score"]
-    threat_intel_score = state["threat_intel"].get("abuse_score", 0) / 100  # 0-1
-    
-    # Risk = ML (50%) + Threat Intel (30%) + Threat Type Known (20%)
-    risk_score = (ml_confidence * 0.5) + (threat_intel_score * 0.3)
-    if state["threat_intel"]["mitre_tactic"] != "unknown":
-        risk_score += 0.2
-    
-    risk_score = min(10, risk_score * 10)  # Normalize to 0-10
-    
-    # Recommendation based on risk
-    if risk_score > 8:
-        recommendation = f"CRITICAL: Block {state['flow']['src_ip']} immediately. Alert SOC."
-    elif risk_score > 6:
-        recommendation = f"HIGH: Block {state['flow']['src_ip']} for 24 hours. Monitor."
-    elif risk_score > 4:
-        recommendation = f"MEDIUM: Log and monitor. Consider temporary rate-limiting."
-    else:
-        recommendation = "LOW: Log for analysis. No immediate action."
-    
-    state["risk_score"] = risk_score
-    state["recommendation"] = recommendation
-    return state
-
-# Build graph
-graph = StateGraph(state)
-graph.add_node("observe", observe_step)
-graph.add_node("hypothesize", hypothesize_step)
-graph.add_node("verify", verify_step)
-graph.add_node("score", score_step)
-
-graph.add_edge("observe", "hypothesize")
-graph.add_edge("hypothesize", "verify")
-graph.add_edge("verify", "score")
-
-graph.set_entry_point("observe")
-graph.set_finish_point("score")
-
-agent = graph.compile()
-result = agent.invoke(initial_state)
+```mermaid
+flowchart TD
+    O[OBSERVE] --> V[VERIFY]
+    V -->|High Abuse > 80| C[CONCLUDE]
+    V -->|Needs Analysis| H[HYPOTHESIZE]
+    H --> CR{CONFLICT RESOLUTION}
+    CR -->|Contradiction Found| H
+    CR -->|Evidence Matches| C
 ```
+
+1. **OBSERVE**: Parses flow features and SHAP math into context. Identifies high-risk ports (e.g., 22=SSH).
+2. **VERIFY**: Checks AbuseIPDB asynchronously to prevent blocking the WSGI thread. Flags potential Zero-Days if ML confidence is high but the IP is "clean".
+3. **HYPOTHESIZE**: Prompts GROQ LLaMA-3.3 to classify the attack (DDoS, Brute-Force, etc.) based strictly on SHAP evidence.
+4. **CONFLICT RESOLUTION (The "Self-Correction" Layer)**: Cross-checks the LLM's hypothesis against hard data.
+   - Example Contradiction: LLM claims "DDoS" but top SHAP feature is "Port 22" (implying Brute-Force).
+   - If a conflict is found, the agent sets a *correction hint* and loops back to **HYPOTHESIZE** to force the LLM to rethink its answer.
+5. **CONCLUDE**: Computes the final normalized Risk Score (0-10) using ML probabilities + Abuse Score, maps to MITRE ATT&CK, and generates an actionable SOC recommendation.
 
 ---
 
-### 4.6 Flask API
+### 4.6 Service-Oriented API Architecture
+
+**Architecture:** Flask Application Factory Pattern
+
+To prevent architectural debt and maintain Single Responsibility Principle (SRP), the backend is decoupled into discrete services:
+- **`app.py`**: A thin routing layer. Handles HTTP lifecycle and delegates core processing to services.
+- **`schemas.py` (Pydantic)**: Acts as an impenetrable gatekeeper. Uses `create_model()` to dynamically bind the exact 80 ML features the Random Forest was trained on. With `extra="forbid"`, any request missing a field or providing an unrecognized column is instantly rejected with a `400 Bad Request`, preventing ML pipeline crashes.
+- **`services/inference.py`**: Encapsulates all Scikit-Learn logic (predict, SHAP explain).
+- **`services/geo_service.py`**: Performs geolocation via a non-blocking `ThreadPoolExecutor`, ensuring external lookups never hang the Flask thread.
+- **`services/persistence.py`**: Manages a thread-safe local buffer for recent alerts.
 
 **Endpoint:** `POST /detect`
 
@@ -409,14 +323,32 @@ result = agent.invoke(initial_state)
 4. **System Health**
    - GROQ API status
    - AbuseIPDB API quota
-   - Database size
-   - Last detection timestamp
 
 ---
 
-## 5. THREAT MODEL (STRIDE - REVISED)
+## 5. TESTING STRATEGY
 
-### 5.1 Spoofing (S)
+To ensure production-grade reliability, the system employs **Mock-Driven Integration Testing** rather than relying on "theatrical" unit tests.
+
+### 5.1 Real Object Instantiation
+Tests do not re-implement logic to verify math. Instead, test fixtures instantiate the *actual* `IDSAgent` and `Flask.test_client()` objects. This ensures the tests are validating the true behaviour of the system.
+
+### 5.2 External Boundary Mocking
+Using `pytest-mock`, the test suite intercepts all external I/O boundaries:
+- **Groq API**: LLM responses are mocked via `MagicMock` payloads to verify the agent's parsing and routing logic without spending API credits.
+- **AbuseIPDB**: HTTP GET requests are mocked to simulate high/low abuse scores and zero-day scenarios.
+- **ML Artifacts**: The `InferenceService` singleton is mocked to bypass loading large `joblib` artifacts during API tests, providing deterministic probabilities and SHAP arrays.
+
+### 5.3 Agent State Verification
+The test suite heavily targets the LangGraph state machine, verifying:
+- **Graph Routing**: Confirms that high AbuseIPDB scores trigger `_route_after_verify` to skip the LLM.
+- **Conflict Resolution**: Verifies that contradictions between SHAP data and LLM hypotheses correctly set the `_conflict_detected` flag and re-trigger the LangGraph cycle.
+
+---
+
+## 6. THREAT MODEL (STRIDE - REVISED)
+
+### 6.1 Spoofing (S)
 
 | Threat | Attack | Mitigation |
 |--------|--------|-----------|
@@ -427,7 +359,7 @@ result = agent.invoke(initial_state)
 
 ---
 
-### 5.2 Tampering (T)
+### 6.2 Tampering (T)
 
 | Threat | Attack | Mitigation |
 |--------|--------|-----------|
@@ -438,7 +370,7 @@ result = agent.invoke(initial_state)
 
 ---
 
-### 5.3 Repudiation (R)
+### 6.3 Repudiation (R)
 
 | Threat | Attack | Mitigation |
 |--------|--------|-----------|
@@ -448,7 +380,7 @@ result = agent.invoke(initial_state)
 
 ---
 
-### 5.4 Information Disclosure (I)
+### 6.4 Information Disclosure (I)
 
 | Threat | Attack | Mitigation |
 |--------|--------|-----------|
@@ -459,7 +391,7 @@ result = agent.invoke(initial_state)
 
 ---
 
-### 5.5 Denial of Service (D)
+### 6.5 Denial of Service (D)
 
 | Threat | Attack | Mitigation |
 |--------|--------|-----------|
@@ -471,7 +403,7 @@ result = agent.invoke(initial_state)
 
 ---
 
-### 5.6 Elevation of Privilege (E)
+### 6.6 Elevation of Privilege (E)
 
 | Threat | Attack | Mitigation |
 |--------|--------|-----------|
@@ -482,7 +414,7 @@ result = agent.invoke(initial_state)
 
 ---
 
-### 5.7 PROMPT INJECTION DEFENSE (NEW - CRITICAL)
+### 6.7 PROMPT INJECTION DEFENSE (NEW - CRITICAL)
 
 **The Threat:**
 Attacker crafts a malicious flow with payload data designed to trick the LLM:
@@ -550,9 +482,9 @@ if threat not in VALID_THREATS:
 
 ---
 
-## 6. EVALUATION METHODOLOGY
+## 7. EVALUATION METHODOLOGY
 
-### 6.0 Metrics Definition
+### 7.0 Metrics Definition
 
 **Key Metrics:**
 - **TPR (True Positive Rate / Sensitivity):** % of real attacks correctly detected
@@ -576,7 +508,7 @@ if threat not in VALID_THREATS:
 - Rationale: RF produces probability estimates [0,1]; 0.5 = neutral point
 - Adjustable: Can be tuned per deployment (stricter = higher precision, lower recall)
 
-### 6.1 CICIDS2017 Evaluation (Train + Test Same Dataset)
+### 7.1 CICIDS2017 Evaluation (Train + Test Same Dataset)
 
 ```python
 # Split CICIDS2017 (80:20 stratified)
@@ -632,7 +564,7 @@ print(f"    FN={fn}, TP={tp}")
 
 ---
 
-### 6.2 Cross-Dataset Evaluation (Generalization Test)
+### 7.2 Cross-Dataset Evaluation (Generalization Test)
 
 ```python
 # Train on CICIDS2017, test on UNSW-NB15
@@ -674,7 +606,7 @@ print(f"  Interpretation:     {'Minor (acceptable)' if generalization_gap < 10 e
 
 ---
 
-### 6.3 SHAP Explanation Quality
+### 7.3 SHAP Explanation Quality
 
 ```python
 # Randomly select 100 flagged flows
@@ -692,7 +624,7 @@ shap_values = explainer.shap_values(X_test[sample_indices])
 
 ---
 
-### 6.4 Agent Latency Measurement
+### 7.4 Agent Latency Measurement
 
 ```python
 import time
@@ -716,7 +648,7 @@ for flow in test_flows:
 
 ---
 
-## 7. TECHNOLOGY JUSTIFICATION
+## 8. TECHNOLOGY JUSTIFICATION
 
 | Component | Choice | Why | Alternatives | Trade-off |
 |-----------|--------|-----|--------------|-----------|
@@ -732,7 +664,7 @@ for flow in test_flows:
 
 ---
 
-## 8. TECHNICAL CONSTRAINTS & PROJECT BOUNDARIES
+## 9. TECHNICAL CONSTRAINTS & PROJECT BOUNDARIES
 
 The system is designed as a high-fidelity investigative tool for security analysts. It is not intended to replace line-rate firewalls or carrier-grade IDS. The following constraints define the operating environment:
 
@@ -760,7 +692,7 @@ The system is designed as a high-fidelity investigative tool for security analys
 
 ---
 
-## 9. ARCHITECTURE SUMMARY
+## 10. ARCHITECTURE SUMMARY
 
 ```
 TRAINING PHASE (Weeks 7-9):
@@ -796,7 +728,7 @@ EVALUATION PHASE (Weeks 13-14):
 
 ---
 
-## 10. REFERENCES
+## 11. REFERENCES
 
 [1] L. Grinsztajn, E. Oyallon, and G. Varoquaux, "Why do tree-based models still outperform deep learning on typical tabular data?," in *Advances in Neural Information Processing Systems*, 2022.
 

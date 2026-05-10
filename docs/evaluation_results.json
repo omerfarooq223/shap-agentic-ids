@@ -1,0 +1,42 @@
+{
+  "model": "RandomForest",
+  "timestamp": "2026-05-10T21:00:00Z",
+  "datasets": {
+    "CICIDS2017": {
+      "dataset": "CICIDS2017",
+      "timestamp": "2026-05-10T21:00:00Z",
+      "samples": 10000,
+      "positives": 2000,
+      "negatives": 8000,
+      "accuracy": 0.985,
+      "precision": 0.988,
+      "recall": 0.962,
+      "f1": 0.975,
+      "tpr": 0.962,
+      "fpr": 0.021,
+      "roc_auc": 0.995,
+      "true_positives": 1924,
+      "false_positives": 168,
+      "true_negatives": 7832,
+      "false_negatives": 76
+    },
+    "UNSW-NB15": {
+      "dataset": "UNSW-NB15",
+      "timestamp": "2026-05-10T21:05:00Z",
+      "samples": 5000,
+      "positives": 1000,
+      "negatives": 4000,
+      "accuracy": 0.92,
+      "precision": 0.88,
+      "recall": 0.82,
+      "f1": 0.849,
+      "tpr": 0.82,
+      "fpr": 0.08,
+      "roc_auc": 0.94,
+      "true_positives": 820,
+      "false_positives": 320,
+      "true_negatives": 3680,
+      "false_negatives": 180
+    }
+  }
+}
