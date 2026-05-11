@@ -25,6 +25,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from pydantic import ValidationError
 from dotenv import load_dotenv
 
@@ -44,7 +46,37 @@ from src.streaming_api import create_streaming_blueprint
 # ---------------------------------------------------------------------------
 
 app = Flask(__name__)
-CORS(app)
+
+# Configure CORS with specific origins (enforced in config.py)
+CORS(
+    app, 
+    origins=[config.FRONTEND_ORIGIN],  # Now required, no default wildcard
+    methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "X-API-KEY"],
+    supports_credentials=True,
+    max_age=3600
+)
+
+logger.info(f"✓ CORS configured for origin(s): {config.FRONTEND_ORIGIN}")
+
+# ---------------------------------------------------------------------------
+# Rate Limiting Setup
+# ---------------------------------------------------------------------------
+if config.RATE_LIMIT_ENABLED:
+    limiter = Limiter(
+        app=app,
+        key_func=get_remote_address,
+        default_limits=["200 per day", "50 per hour"],  # Global fallback
+        storage_uri="memory://"
+    )
+    logger.info("✓ Rate limiting enabled")
+else:
+    # Dummy limiter that does nothing (for testing)
+    class DummyLimiter:
+        def limit(self, *args, **kwargs):
+            return lambda f: f
+    limiter = DummyLimiter()
+    logger.warning("⚠️  Rate limiting DISABLED (development mode)")
 
 # ---------------------------------------------------------------------------
 # Module-level agent handle (initialised in initialize_system)
@@ -94,6 +126,7 @@ def _log_request():
 # ---------------------------------------------------------------------------
 
 @app.route("/health", methods=["GET"])
+@limiter.limit(config.RATE_LIMIT_HEALTH)
 def health():
     ready = inference_service.is_ready and _agent is not None
     return jsonify(
@@ -106,6 +139,7 @@ def health():
 
 
 @app.route("/status", methods=["GET"])
+@limiter.limit(config.RATE_LIMIT_HEALTH)
 def status():
     return jsonify(
         {
@@ -124,14 +158,64 @@ def status():
 # ---------------------------------------------------------------------------
 
 @app.route("/detect", methods=["POST", "OPTIONS"])
+@limiter.limit(config.RATE_LIMIT_DETECT)
 def detect():
-    # Security: Ensure only authorized frontend can trigger detection
-    api_key = request.headers.get("X-API-KEY")
-    if api_key != config.INTERNAL_API_KEY:
-        return jsonify({"error": "Unauthorized"}), 401
-
+    """
+    POST /detect - Detect threats in a network flow.
+    
+    This is the main entry point for threat detection. It orchestrates:
+    1. Schema validation of input flow
+    2. ML prediction (RandomForest + SMOTE-trained)
+    3. SHAP explanation of features
+    4. Agentic reasoning (LLM + threat intelligence)
+    
+    Security:
+    - Requires X-API-KEY header with valid INTERNAL_API_KEY
+    - Rate limited to 100 requests/minute
+    - Input features strictly validated against FEATURE_RANGES
+    
+    Request Body (JSON):
+    {
+        "flow": {
+            "src_ip": "192.168.1.100",
+            "dst_ip": "10.0.0.1",
+            "dst_port": 443,
+            "protocol": "TCP",
+            "... feature_1 ... feature_N": <numeric values>
+        }
+    }
+    
+    Response (on success):
+    {
+        "threat_detected": true,
+        "ml_confidence": 0.95,
+        "threat_type": "DDoS",
+        "mitre_technique": "T1498",
+        "risk_score": 9.2,
+        "recommendation": "CRITICAL: Immediate block required. Alert SOC.",
+        "features": [
+            {"feature": "fwd_packets/s", "value": 15000, "contribution": 0.42}
+        ]
+    }
+    
+    Returns:
+        JSON response with threat classification and recommendations
+        HTTP 200: Threat assessment successful
+        HTTP 400: Invalid request format or missing features
+        HTTP 401: Missing or invalid API key
+        HTTP 503: System not initialized
+    """
     if request.method == "OPTIONS":
         return jsonify({"status": "ok"}), 200
+
+    # Security: Ensure only authorized frontend can trigger detection
+    api_key = request.headers.get("X-API-KEY")
+    if not api_key:
+        logger.warning(f"Unauthorized /detect request (missing API key) from {request.remote_addr}")
+        return jsonify({"error": "Unauthorized: missing X-API-KEY header"}), 401
+    if api_key != config.get_internal_api_key():
+        logger.warning(f"Unauthorized /detect request (invalid API key) from {request.remote_addr}")
+        return jsonify({"error": "Unauthorized: invalid API key"}), 401
 
     if not inference_service.is_ready or not _agent:
         return jsonify({"error": "System not initialized. Run 'python src/train.py' first."}), 503
@@ -153,27 +237,44 @@ def detect():
     )
 
     # ── 2. ML Detection ───────────────────────────────────────────────────
-    ml_score = inference_service.predict_proba(flow)
+    try:
+        ml_score = inference_service.predict_proba(flow)
+    except ValueError as e:
+        logger.warning(f"Feature validation failed: {e}")
+        return jsonify({"error": "Invalid flow features", "details": str(e)}), 400
+    except Exception as e:
+        logger.error(f"ML prediction error: {e}", exc_info=True)
+        return jsonify({"error": "ML prediction failed"}), 500
+    
     logger.info(f"ML score: {ml_score:.3f}")
 
     if ml_score < 0.5:
         geo = get_geo_location(flow["src_ip"])
-        return jsonify(
-            {
-                "anomaly": False,
-                "ml_confidence": ml_score,
-                "shap_explanation": [],
-                "threat_type": "benign",
-                "observation": "Flow appears to be legitimate traffic",
-                "threat_intel": {"abuse_score": 0},
-                "risk_score": 0.0,
-                "recommendation": "No action required.",
-                "geo_location": geo,
-            }
-        ), 200
+        response = DetectResponse(
+            id=int(time.time() * 1000),
+            timestamp=time.strftime("%I:%M:%S %p"),
+            src_ip=flow["src_ip"],
+            dst_ip=flow["dst_ip"],
+            dst_port=flow["dst_port"],
+            anomaly=False,
+            ml_confidence=ml_score,
+            shap_explanation=[],
+            threat_type="benign",
+            recommendation="No action required.",
+            geo_location=geo,
+            agent_reasoning=["ML model determined flow is benign."],
+        )
+        return jsonify(response.model_dump()), 200
 
     # ── 3. SHAP Explainability ────────────────────────────────────────────
-    shap_explanation = inference_service.explain(flow)
+    try:
+        shap_explanation = inference_service.explain(flow)
+    except ValueError as e:
+        logger.warning(f"SHAP explanation failed due to feature validation: {e}")
+        shap_explanation = []  # Fallback: continue with empty explanation
+    except Exception as e:
+        logger.error(f"SHAP explanation error: {e}", exc_info=True)
+        shap_explanation = []  # Fallback: continue with empty explanation
 
     # ── 4. Agentic Reasoning (with self-correction) ───────────────────────
     t0 = time.time()
@@ -245,6 +346,7 @@ def detect():
 # ---------------------------------------------------------------------------
 
 @app.route("/api/v1/alerts", methods=["GET"])
+@limiter.limit(config.RATE_LIMIT_HEALTH)
 def get_alerts():
     return jsonify(alert_repo.get_all()), 200
 
@@ -254,14 +356,49 @@ def get_alerts():
 # ---------------------------------------------------------------------------
 
 @app.route("/chat", methods=["POST", "OPTIONS"])
+@limiter.limit(config.RATE_LIMIT_CHAT)
 def chat():
-    # Security: Prevent LLM proxy abuse
-    api_key = request.headers.get("X-API-KEY")
-    if api_key != config.INTERNAL_API_KEY:
-        return jsonify({"error": "Unauthorized"}), 401
-
+    """
+    POST /chat - Interactive LLM chat for threat analysis discussion.
+    
+    Allows frontend/SOC analysts to ask follow-up questions about detected
+    threats using the same Groq LLM as the agent pipeline. This enables
+    interactive threat investigation without re-running the full detection.
+    
+    Security:
+    - Requires X-API-KEY header with valid INTERNAL_API_KEY
+    - Rate limited to 50 requests/minute (lower than /detect for cost control)
+    - LLM query timeouts at 30 seconds to prevent hanging
+    
+    Request Body (JSON):
+    {
+        "threat_type": "DDoS",
+        "question": "Why was this flow classified as DDoS?"
+    }
+    
+    Response (on success):
+    {
+        "response": "This flow was classified as DDoS because of high packet volume..."
+    }
+    
+    Returns:
+        JSON response with LLM analysis
+        HTTP 200: LLM response generated
+        HTTP 400: Invalid request format
+        HTTP 401: Missing or invalid API key
+        HTTP 503: LLM service unavailable
+    """
     if request.method == "OPTIONS":
         return jsonify({}), 200
+
+    # Security: Prevent LLM proxy abuse
+    api_key = request.headers.get("X-API-KEY")
+    if not api_key:
+        logger.warning(f"Unauthorized /chat request (missing API key) from {request.remote_addr}")
+        return jsonify({"error": "Unauthorized: missing X-API-KEY header"}), 401
+    if api_key != config.get_internal_api_key():
+        logger.warning(f"Unauthorized /chat request (invalid API key) from {request.remote_addr}")
+        return jsonify({"error": "Unauthorized: invalid API key"}), 401
 
     try:
         body = request.get_json(force=True) or {}
@@ -320,12 +457,17 @@ Be technical but concise. Reference SHAP evidence when relevant."""
 # ---------------------------------------------------------------------------
 
 @app.route("/api/test/stress", methods=["POST"])
+@limiter.limit(config.RATE_LIMIT_TEST)
 def trigger_stress_test():
     """Simulates a burst of malicious flows for dashboard testing."""
     # Security: Prevent buffer spamming
     api_key = request.headers.get("X-API-KEY")
-    if api_key != config.INTERNAL_API_KEY:
-        return jsonify({"error": "Unauthorized"}), 401
+    if not api_key:
+        logger.warning(f"Unauthorized /api/test/stress request (missing API key) from {request.remote_addr}")
+        return jsonify({"error": "Unauthorized: missing X-API-KEY header"}), 401
+    if api_key != config.get_internal_api_key():
+        logger.warning(f"Unauthorized /api/test/stress request (invalid API key) from {request.remote_addr}")
+        return jsonify({"error": "Unauthorized: invalid API key"}), 401
 
     def _burst():
         attack_types = ["DDoS", "Port-Scan", "Brute-Force", "Botnet"]
@@ -355,6 +497,7 @@ def trigger_stress_test():
 
 
 @app.route("/api/metrics/benchmarks", methods=["GET"])
+@limiter.limit(config.RATE_LIMIT_HEALTH)
 def get_benchmarks():
     import json
     from pathlib import Path
@@ -432,6 +575,9 @@ def _detection_callback(flow: dict) -> dict:
             "risk_score": state.get("risk_score"),
             "recommendation": state.get("recommendation"),
         }
+    except ValueError as e:
+        logger.warning(f"Streaming detection: feature validation failed: {e}")
+        return {"anomaly": False, "error": f"Feature validation: {str(e)[:100]}"}
     except Exception as exc:
         logger.error(f"Detection callback error: {exc}")
         return {"anomaly": False, "error": str(exc)}

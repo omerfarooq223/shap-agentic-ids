@@ -176,7 +176,8 @@ class TestFeatureMapping:
     def test_cicids_feature_count(self):
         """Test that CICIDS2017 has expected number of features."""
         from src import config
-        expected_min = 70  # At least 70 features (allows some variance)
+        # Robust model uses 12 curated features for generalization
+        expected_min = 12
         assert len(config.NUMERIC_FEATURES) >= expected_min, \
             f"Expected ≥{expected_min} features, got {len(config.NUMERIC_FEATURES)}"
         print(f"✓ CICIDS2017 has {len(config.NUMERIC_FEATURES)} features")

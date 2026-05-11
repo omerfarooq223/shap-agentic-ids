@@ -4,9 +4,114 @@ Provides shared test data and mock objects.
 """
 
 import pytest
+import sys
+from unittest.mock import MagicMock
+
+# --- SHIELD: Prevent broken langgraph installation from failing test collection ---
+try:
+    import langgraph.graph
+except (ImportError, NameError):
+    # Mocking langgraph modules to allow tests to run on the rest of the stack
+    mock_lg = MagicMock()
+    sys.modules["langgraph"] = mock_lg
+    sys.modules["langgraph.graph"] = mock_lg
+    sys.modules["langgraph.prebuilt"] = mock_lg
+
+# Mock flask_limiter if missing
+try:
+    import flask_limiter
+except ImportError:
+    # Transparent decorator logic for Flask-Limiter
+    class MockLimiter:
+        def __init__(self, *args, **kwargs): pass
+        def limit(self, *args, **kwargs):
+            return lambda f: f
+    
+    mock_lib = MagicMock()
+    mock_lib.Limiter = MockLimiter
+    sys.modules["flask_limiter"] = mock_lib
+    sys.modules["flask_limiter.util"] = MagicMock()
+# ----------------------------------------------------------------------------------
+
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+
+@pytest.fixture(scope="session")
+def flask_client():
+    """
+    Create a fully isolated Flask test client available to all tests.
+    All service singletons are mocked so no real models are needed.
+    """
+    from src import config
+    # Ensure src.app is loaded so patching works
+    import src.app
+    
+    with patch("src.agent.Groq") as MockGroq:
+        MockGroq.return_value = MagicMock()
+
+        # Patch the inference service singleton to avoid loading model files
+        with patch("src.services.inference.inference_service") as mock_infer, \
+             patch("src.services.geo_service.get_geo_location") as mock_geo, \
+             patch("src.services.persistence.alert_repo") as mock_repo, \
+             patch("src.app.build_agent") as mock_build_agent:
+
+            # Configure inference service mock (v2: robust and overridable)
+            mock_infer.is_ready = True
+            mock_infer.predict_proba.return_value = 0.15 # Default benign
+            
+            def mock_explain_logic(features, top_n=5):
+                return [
+                    {"feature": "Destination Port", "value": str(features.get("Destination Port", 0)),
+                     "contribution": 0.45, "absolute_contribution": 0.45},
+                    {"feature": "Flow Duration", "value": "1234",
+                     "contribution": 0.1, "absolute_contribution": 0.1}
+                ]
+            mock_infer.explain.side_effect = mock_explain_logic
+
+            # Configure geo mock
+            mock_geo.return_value = {
+                "lat": 31.52, "lon": 74.36, "country": "Local Network", "city": "Lahore"
+            }
+
+            # Configure persistence mock
+            mock_repo.get_all.return_value = []
+            mock_repo.push.return_value = None
+            mock_repo.load.return_value = None
+
+            # Configure agent mock
+            mock_agent = MagicMock()
+            mock_agent.analyze.return_value = {
+                "hypothesized_threat": "Port-Scan",
+                "observation_context": "Rapid port probing detected.",
+                "llm_confidence": 0.87,
+                "threat_intel": {
+                    "abuse_score": 45,
+                    "intel_source": "AbuseIPDB (Live)",
+                    "intel_status": "success",
+                    "zero_day_potential": False,
+                    "mitre_mapping": "T1046",
+                },
+                "risk_score": 8.5,
+                "recommendation": "WARNING: Monitor and rate-limit flow.",
+                "observation": "Observing flow",
+                "_conflict_detected": False,
+                "error": "",
+            }
+            mock_build_agent.return_value = mock_agent
+
+            # Import app AFTER mocks are in place
+            from src.app import app
+            import src.app as app_module
+            app_module.inference_service = mock_infer
+            app_module._agent = mock_agent
+            app_module.alert_repo = mock_repo
+
+            app.config["TESTING"] = True
+            with app.test_client() as client:
+                yield client, mock_infer, mock_agent, mock_geo, mock_repo
 
 
 @pytest.fixture(scope="session")

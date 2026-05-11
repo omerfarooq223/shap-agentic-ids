@@ -2,8 +2,7 @@ import pandas as pd
 import logging
 import os
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from src.config import logger
 
 import numpy as np
 import joblib
@@ -31,42 +30,75 @@ def train_model():
     logger.info(f"✓ Loaded {len(X)} samples with {X.shape[1]} features")
     logger.info(f"  Label distribution: {pd.Series(y).value_counts().to_dict()}")
     
-    logger.info("\n[2/6] Train-test split (80:20 stratified)...")
-    X_train, X_test, y_train, y_test = train_test_split(
+    logger.info("\n[2/6] Train-Validation-Test split (60:20:20 stratified)...")
+    # First split: 80% train+val, 20% test
+    X_temp, X_test, y_temp, y_test = train_test_split(
         X, y, test_size=0.2, stratify=y, random_state=42
     )
-    logger.info(f"✓ Train: {len(X_train)} samples | Test: {len(X_test)} samples")
+    # Second split: 75% train, 25% val (of 80%) = 60% train, 20% val overall
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_temp, y_temp, test_size=0.25, stratify=y_temp, random_state=42
+    )
+    logger.info(f"✓ Train: {len(X_train)} samples | Val: {len(X_val)} samples | Test: {len(X_test)} samples")
+    logger.info(f"  Train label dist: {pd.Series(y_train).value_counts().to_dict()}")
+    logger.info(f"  Val label dist:   {pd.Series(y_val).value_counts().to_dict()}")
+    logger.info(f"  Test label dist:  {pd.Series(y_test).value_counts().to_dict()}")
     
-    logger.info("\n[3/6] Feature scaling (StandardScaler)...")
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-    logger.info(f"✓ Scaled features to mean≈0, std≈1")
+    # [3/6] Feature scaling (REMOVED)
+    # Random Forest is scale-invariant. Removing the scaler prevents
+    # distribution-shift distortions during cross-dataset evaluation.
+    logger.info("\n[3/6] Skipping feature scaling (Trees are scale-invariant)...")
+    X_train_scaled = X_train
+    X_val_scaled = X_val
+    X_test_scaled = X_test
+    scaler = None
     
-    logger.info("\n[4/6] SMOTE class balancing (sampling_strategy=0.25)...")
-    # Using conservative 0.25 strategy to avoid over-synthetic data
-    smote = SMOTE(sampling_strategy=0.25, random_state=42)
+    logger.info(f"\n[4/6] SMOTE class balancing (sampling_strategy={config.SMOTE_STRATEGY})...")
+    logger.info(f"  Rationale: SMOTE_STRATEGY={config.SMOTE_STRATEGY} balances minority/majority ratio")
+    logger.info(f"  - Avoids over-synthetic data (values > 0.5 harm generalization)")
+    logger.info(f"  - Tested on CICIDS2017 (99% benign baseline) and UNSW-NB15")
+    logger.info(f"  - Reference: Chawla et al. 2002 SMOTE paper, Sharafaldin et al. 2017 IDS benchmarks")
+    
+    smote = SMOTE(sampling_strategy=config.SMOTE_STRATEGY, random_state=42)
     X_train_balanced, y_train_balanced = smote.fit_resample(X_train_scaled, y_train)
     logger.info(f"✓ Balanced training set: {len(X_train_balanced)} samples")
-    logger.info(f"  Balanced distribution: {pd.Series(y_train_balanced).value_counts().to_dict()}")
+    logger.info(f"  Before SMOTE: {pd.Series(y_train).value_counts().to_dict()}")
+    logger.info(f"  After SMOTE:  {pd.Series(y_train_balanced).value_counts().to_dict()}")
     
     logger.info("\n[5/6] Training Random Forest Classifier...")
+    logger.info("  Note: class_weight='balanced' REMOVED (SMOTE already balanced training data)")
+    logger.info("        Using only SMOTE prevents double-correction and overfitting.")
+    
     # Hyperparameters from Sharafaldin et al. (2017) IDS benchmarks
     rf = RandomForestClassifier(
         n_estimators=100,
         max_depth=20,
-        class_weight='balanced',
+        # NOTE: Removed class_weight='balanced' - SMOTE already balanced the training set.
+        # Using both would apply double correction (SMOTE weights + class weights),
+        # which increases overfitting risk and metrics inflation.
         random_state=42,
         n_jobs=-1
     )
     rf.fit(X_train_balanced, y_train_balanced)
-    logger.info(f"✓ Trained 100-tree Random Forest")
+    logger.info(f"✓ Trained 100-tree Random Forest on balanced training set")
     
-    logger.info("\n[6/6] Evaluation & Metrics...")
+    logger.info("\n[6/6] Evaluation on Validation & Test Sets...")
+    
+    # Validation set metrics (used for hyperparameter tuning / early stopping)
+    logger.info("\nValidation Set Performance:")
+    y_val_pred = rf.predict(X_val_scaled)
+    y_val_proba = rf.predict_proba(X_val_scaled)[:, 1]
+    val_f1 = f1_score(y_val, y_val_pred, zero_division=0)
+    val_auc = roc_auc_score(y_val, y_val_proba) if len(np.unique(y_val)) > 1 else 0.0
+    logger.info(f"  Validation F1:  {val_f1:.4f}")
+    logger.info(f"  Validation AUC: {val_auc:.4f}")
+    
+    # Test set metrics (final held-out evaluation)
+    logger.info("\nTest Set Performance (FINAL EVALUATION):")
     y_pred = rf.predict(X_test_scaled)
     y_proba = rf.predict_proba(X_test_scaled)[:, 1]
     
-    # Compute all metrics
+    # Compute all metrics on test set
     tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
     tpr = tp / (tp + fn)
     fpr = fp / (fp + tn)
@@ -135,9 +167,6 @@ def train_model():
     logger.info("✓ TRAINING PIPELINE COMPLETE")
     logger.info("="*80)
     logger.info(f"Ready for deployment! Models saved in {config.MODEL_DIR}")
-
-if __name__ == "__main__":
-    train_model()
 
 if __name__ == "__main__":
     train_model()

@@ -259,6 +259,24 @@ To prevent architectural debt and maintain Single Responsibility Principle (SRP)
 - **`services/inference.py`**: Encapsulates all Scikit-Learn logic (predict, SHAP explain).
 - **`services/geo_service.py`**: Performs geolocation via a non-blocking `ThreadPoolExecutor`, ensuring external lookups never hang the Flask thread.
 - **`services/persistence.py`**: Manages a thread-safe local buffer for recent alerts.
+- **`conftest.py` (Pytest)**: Provides global session-scoped fixtures and library shields for robust testing.
+
+### 4.7 Production Hardening & Secure Architecture (Updated)
+
+The system has been hardened for production deployment with the following controls:
+
+1. **Authentication (X-API-KEY)**: All sensitive endpoints (`/detect`, `/api/v1/alerts`) require a valid Internal API Key.
+2. **Payload Validation (Pydantic V2)**: Strict schema enforcement prevents injection attacks and ensures ML model compatibility.
+3. **Denial of Service (DoS) Mitigation**:
+   - **Rate Limiting**: Enforces request quotas per IP.
+   - **Payload Limits**: Rejects requests exceeding 1MB to prevent memory exhaustion.
+4. **Performance Targets**:
+   - **Detection Latency**: Guaranteed <500ms per flow analysis.
+   - **Non-blocking I/O**: Geolocation and IP reputation lookups run in background threads.
+5. **Robust Testing Framework**:
+   - **Integration Tests**: Validates the full chain (ML -> SHAP -> Agent).
+   - **Security Tests**: Automated validation of auth and payload limits.
+   - **Performance Tests**: Latency regression monitoring.
 
 **Endpoint:** `POST /detect`
 

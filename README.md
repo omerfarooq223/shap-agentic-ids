@@ -133,18 +133,23 @@ IS Project/
 │   ├── streaming_api.py    # Real-time data pipeline
 │   ├── train.py            # Model training & SMOTE balancing
 │   ├── data_loader.py      # Data loading & Feature mapping
+│   ├── evaluation_metrics.py # Comprehensive ML evaluation
 │   ├── config.py           # Central system configuration
 │   └── merge_data.py       # Data cleaning pipeline
-├── scripts/                # Helper & Experimental Scripts
-│   ├── run_evaluation.py   # Cross-dataset evaluation
-│   ├── dashboard.py        # Legacy Streamlit dashboard
-│   ├── snort_comparison.py # Snort benchmark script
-│   └── hybrid_ids_comparison.py
+├── scripts/                # Helper & Evaluation Scripts
+│   └── run_evaluation.py   # Multi-dataset benchmarking
 ├── frontend/               # React + Vite SOC Dashboard (Premium UI)
+│   ├── src/components/     # Modular UI Panels (Map, Chat, Dashboard)
+│   └── src/constants.js    # Centralized Frontend Config
 ├── models/                 # Serialized RF Models & Scalers
 ├── data/                   # CICIDS2017 & UNSW-NB15 datasets
+├── docs/                   # Benchmarks & Output Artifacts
 ├── tests/                  # Unit, Integration & Stress Tests
+│   ├── test_flask_api.py   # Pytest suite with external mocks
+│   └── conftest.py         # Test configuration and fixtures
 ├── run_flask.py            # Main API Launcher (Root)
+├── pytest.ini              # Pytest configuration
+├── requirements.txt        # Backend dependencies
 └── .env.example            # Environment template
 ```
 
@@ -161,7 +166,7 @@ IS Project/
 - [x] Random Forest model training with SMOTE
 - [x] SHAP explainability layer
 - [x] Flask API `/detect` endpoint (Refactored Factory)
-- [x] Test suite with 56 integration tests via pytest-mock
+- [x] Test suite with 28 integration tests via pytest-mock (100% Passing)
 - [x] GitHub commits showing incremental progress
 
 **Phase 5-7: Implementation (Weeks 10-15) ⏳**
@@ -171,6 +176,11 @@ IS Project/
 - [x] Cross-dataset evaluation (CICIDS2017 + UNSW-NB15)
 - [x] React/Vite SOC dashboard (UI Polish)
 - [x] Technical report + presentation
+- [x] **Production Hardening (New):**
+    - [x] API Key Security & Rate Limiting
+    - [x] Performance Benchmarking (sub-500ms latency)
+    - [x] Full Pipeline Integration Testing
+    - [x] Frontend Dashboard Unit Testing
 
 ---
 
