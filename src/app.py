@@ -456,22 +456,62 @@ Be technical but concise. Reference SHAP evidence when relevant."""
 # Academic / testing endpoints
 # ---------------------------------------------------------------------------
 
+@app.route("/api/test/malicious", methods=["POST"])
+@limiter.limit(config.RATE_LIMIT_TEST)
+def trigger_malicious():
+    """Injects a single highly detailed malicious SQL injection / APT signature."""
+    api_key = request.headers.get("X-API-KEY")
+    if not api_key or api_key != config.get_internal_api_key():
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    mock = {
+        "id": int(time.time() * 1000),
+        "timestamp": time.strftime("%I:%M:%S %p"),
+        "src_ip": "185.15.59.224",
+        "dst_ip": "192.168.10.50",
+        "dst_port": 80,
+        "anomaly": True,
+        "ml_confidence": 0.998,
+        "threat_type": "Web-Attack-Sql-Injection (APT)",
+        "risk_score": 9.9,
+        "status": "CRITICAL",
+        "recommendation": "IMMEDIATE BLOCK: High probability of SQL Injection / Remote Code Execution attempt. Isolate affected web server instantly.",
+        "geo_location": {"lat": 55.7558, "lon": 37.6173, "country": "Russia", "city": "Moscow"},
+        "shap_explanation": [
+            {"feature": "Destination Port", "value": "80", "contribution": 0.45, "absolute_contribution": 0.45},
+            {"feature": "Flow Duration", "value": "22ms", "contribution": 0.22, "absolute_contribution": 0.22},
+            {"feature": "Packet Length Variance", "value": "1500", "contribution": 0.18, "absolute_contribution": 0.18},
+            {"feature": "Flag Sequence PSH", "value": "1", "contribution": 0.11, "absolute_contribution": 0.11}
+        ],
+        "threat_intel": {
+            "abuse_score": 100,
+            "intel_source": "AbuseIPDB (Live)",
+            "intel_status": "success",
+            "zero_day_potential": False,
+            "mitre_mapping": "T1190"
+        },
+        "agent_reasoning": [
+            "1. OBSERVATION: Spike in SQL metacharacters targeting port 80. Packet lengths abnormal.",
+            "2. VERIFICATION: IP 185.15.59.224 flagged on AbuseIPDB for web exploits.",
+            "3. HYPOTHESIS: Unauthenticated attacker attempting database exfiltration via SQLi.",
+            "4. CONCLUSION: Pattern matches MITRE T1190. Severe risk. Drop packets immediately."
+        ]
+    }
+    alert_repo.push(mock)
+    return jsonify({"status": "Malicious APT injected", "alert_id": mock["id"]}), 200
+
 @app.route("/api/test/stress", methods=["POST"])
 @limiter.limit(config.RATE_LIMIT_TEST)
 def trigger_stress_test():
     """Simulates a burst of malicious flows for dashboard testing."""
-    # Security: Prevent buffer spamming
     api_key = request.headers.get("X-API-KEY")
-    if not api_key:
-        logger.warning(f"Unauthorized /api/test/stress request (missing API key) from {request.remote_addr}")
-        return jsonify({"error": "Unauthorized: missing X-API-KEY header"}), 401
-    if api_key != config.get_internal_api_key():
-        logger.warning(f"Unauthorized /api/test/stress request (invalid API key) from {request.remote_addr}")
-        return jsonify({"error": "Unauthorized: invalid API key"}), 401
+    if not api_key or api_key != config.get_internal_api_key():
+        return jsonify({"error": "Unauthorized"}), 401
 
     def _burst():
         attack_types = ["DDoS", "Port-Scan", "Brute-Force", "Botnet"]
         for _ in range(10):
+            t_type = random.choice(attack_types)
             mock = {
                 "id": int(time.time() * 1000) + random.randint(1, 1000),
                 "timestamp": time.strftime("%I:%M:%S %p"),
@@ -480,14 +520,30 @@ def trigger_stress_test():
                 "dst_port": random.choice([22, 80, 443, 3389]),
                 "anomaly": True,
                 "ml_confidence": random.uniform(0.85, 0.99),
-                "threat_type": random.choice(attack_types),
+                "threat_type": t_type,
                 "risk_score": random.uniform(7.5, 9.8),
                 "status": "CRITICAL",
-                "recommendation": "BLOCK: Stress test anomaly.",
+                "recommendation": f"BLOCK: Stress test detected active {t_type} pattern.",
                 "geo_location": {
                     "lat": random.uniform(-40, 60),
                     "lon": random.uniform(-120, 140),
                 },
+                "shap_explanation": [
+                    {"feature": "Flow Packets/s", "value": str(random.randint(5000, 20000)), "contribution": 0.5, "absolute_contribution": 0.5},
+                    {"feature": "Bwd Packet Length Mean", "value": "400", "contribution": 0.2, "absolute_contribution": 0.2}
+                ],
+                "threat_intel": {
+                    "abuse_score": random.randint(40, 95),
+                    "intel_source": "AbuseIPDB (Live)",
+                    "intel_status": "success",
+                    "mitre_mapping": "T1498"
+                },
+                "agent_reasoning": [
+                    f"OBSERVE: Unusual traffic volume from external subnet targeting service port.",
+                    f"HYPOTHESIZE: Potential {t_type} signature detected by ML core.",
+                    f"VERIFY: Source IP shows suspicious activity in global threat intel.",
+                    f"CONCLUDE: Immediate mitigation required for {t_type} threat."
+                ]
             }
             alert_repo.push(mock)
             time.sleep(0.5)

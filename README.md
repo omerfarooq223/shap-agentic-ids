@@ -2,69 +2,66 @@
 
 ### *Transforming Network Security with Explainable AI & Agentic Reasoning*
 
-![Version](https://img.shields.io/badge/version-1.0.0--prototype-blue)
-![Python](https://img.shields.io/badge/python-3.11+-green)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
+![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)
+![Flask](https://img.shields.io/badge/Flask-000000?style=flat&logo=flask&logoColor=white)
+![Agentic](https://img.shields.io/badge/Agentic-LangGraph-orange?style=flat)
+![XAI](https://img.shields.io/badge/Explainable_AI-SHAP-blueviolet?style=flat)
+![Security](https://img.shields.io/badge/Security-Hardened-success?style=flat)
 
-This project implements a **Hybrid Intrusion Detection System (IDS)** that bridges the gap between high-performance machine learning and human-readable security analysis. By combining **Random Forest** detection with **SHAP** (SHapley Additive exPlanations) and a **LangGraph-driven Agent**, the system doesn't just block threats—it explains *why* they were flagged.
+## 📖 Overview
+This project implements a **Hybrid Intrusion Detection System (IDS)** designed for modern Security Operations Centers (SOC). It bridges the gap between high-performance "black-box" machine learning and actionable human-readable security analysis. 
 
----
-
-## ⚡ TL;DR
-
-**What it does:** Flags suspicious network flows using ML, then *explains why* using SHAP and checks IP reputation via AbuseIPDB.
-
-**Example output:**
-```
-Flow 192.168.1.50 → 8.8.8.8:443 flagged as ANOMALY
-ML Confidence: 0.92
-Top features: Entropy=8.9 (+0.35), Dst_Port=443 (+0.20), Duration=3s (-0.05)
-IP Reputation: 45/100 abuse score (suspicious)
-MITRE ATT&CK: T1190 (Exploit Public-Facing Application)
-Risk Score: 7.8/10 | Action: BLOCK
-```
-
----
-
-## 📋 System Requirements
-
-- **Python 3.11+**
-- **RAM:** 4GB minimum (8GB recommended for full CICIDS2017)
-- **Disk:** 500MB free (for CICIDS2017 dataset ~300MB + models)
-- **OS:** macOS, Linux, or WSL
+The system leverages **Random Forest** classification for high-speed detection, **SHAP** (SHapley Additive exPlanations) for transparency, and a **LangGraph-driven Agent** for intelligent verification and contextualization. Unlike traditional systems that only flag threats, this platform explains *why* a flow was flagged and provides remediation steps based on live threat intelligence.
 
 ---
 
 ## 🏗️ System Architecture
 
+The core logic follows a non-linear reasoning pipeline implemented with **LangGraph**:
+
 ```mermaid
 flowchart TD
-    A[Data Source] --> B[ML Detection]
-    subgraph Intelligence
-        B --> C[SHAP Explanation]
-        C --> D[Agent Reasoning]
+    A[Network Flow] --> B[ML Detection Engine]
+    B --> C{Threat?}
+    C -- No --> D[Log Benign]
+    C -- Yes --> E[SHAP Explainer]
+    E --> F[Agentic Reasoning Pipeline]
+    
+    subgraph "Agentic Reasoning (LangGraph)"
+        F --> G[Observe: Contextualize Features]
+        G --> H[Verify: External Threat Intel]
+        H --> I[Hypothesize: LLM Analysis]
+        I --> J[Conflict Resolution]
+        J --> K[Conclude: Actionable Alert]
     end
-    subgraph Verification
-        D <--> E[AbuseIPDB Intel]
-        D <--> F[MITRE Mapping]
-    end
-    D --> G[Actionable Alert]
+    
+    K --> L[SOC Dashboard]
+    H <--> M[(AbuseIPDB API)]
+    I <--> N[MITRE ATT&CK Mapping]
 ```
 
 ---
 
 ## 🚀 Key Features
 
-*   **Explainable ML:** Uses SHAP to provide mathematical proof for every alert, showing exactly which network features (ports, duration, byte counts) triggered the detection.
-*   **Agentic Verification:** A structured LangGraph agent uses **GROQ (Llama 3.3)** to verify alerts against external threat intelligence (AbuseIPDB) and map them to **MITRE ATT&CK** tactics.
-*   **Academic Rigor:** Built with class-imbalance handling (SMOTE) and validated using cross-dataset evaluation (CICIDS2017 & UNSW-NB15).
-*   **High-Density Dashboard:** A premium React-based Security Operations Center (SOC) dashboard for real-time monitoring and investigative deep-dives.
+*   **Explainable ML (XAI):** Integrated SHAP layer provides mathematical proof for every alert, mapping raw network features (entropy, ports, durations) to contribution scores.
+*   **Agentic Self-Correction:** A LangGraph reasoning engine uses **Llama 3.3 (via Groq)** to verify ML outputs against live reputation data and resolves conflicts between model predictions and network logic.
+*   **Live Threat Intelligence:** Automated IP reputation checks via **AbuseIPDB** and automated mapping to **MITRE ATT&CK** tactics and techniques.
+*   **Real Packet Capture & Streaming API:** Native Scapy-based sniffer (`packet_capture.py`) for live interface capture, coupled with a highly concurrent REST Streaming API (`streaming_api.py`) for continuous line-rate packet analysis.
+*   **Real Snort/Suricata Comparison:** Integrated side-by-side behavioral forensic lab (`snort_comparison.py`) to benchmark the LLM Agent against traditional signature-based rules (addresses Tier S requirement).
+*   **Real-time SOC Dashboard:** A premium React-based interface featuring a 3D threat globe, live forensic chat, and high-density telemetry.
 
 ---
 
 ## 🛠️ Installation & Setup
 
-### 1. Environment Setup
+### 1. Requirements
+- **Python 3.11+**
+- **Node.js 18+** (for frontend)
+- **API Keys:** Groq (for LLM) and AbuseIPDB (for threat intel)
+
+### 2. Backend Setup
 ```bash
 # Create and activate virtual environment
 python3 -m venv venv
@@ -72,117 +69,107 @@ source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your GROQ_API_KEY and ABUSEIPDB_API_KEY
 ```
 
-### 1.5 Verify Installation ✅
+### 3. Frontend Setup
 ```bash
-# Run quick tests to ensure everything is installed correctly
-pytest tests/test_data_loader.py -v
-
-# Expected output:
-# ✓ test_cicids_data_exists PASSED
-# ✓ test_cicids_feature_count PASSED
-# ✓ All feature mappings valid
+cd frontend
+npm install
 ```
 
-If tests fail, re-run: `pip install -r requirements.txt --upgrade`
+---
 
-### 2. Configuration
-Create a `.env` file in the root directory:
-```bash
-GROQ_API_KEY=your_groq_api_key
-ABUSEIPDB_API_KEY=your_abuseipdb_api_key
-```
+## 🚦 Usage Guide
 
-### 3. Training the Intelligence Pipeline
-To train the detection model and initialize the explainability layer:
+### 1. Data Preparation & Training
+Before running the system, initialize the ML pipeline:
 ```bash
-# Merges raw datasets and applies stratified sampling
+# Merge raw datasets (CICIDS2017)
 python src/merge_data.py
 
-# Trains the Random Forest + Scaler + SHAP Explainer
+# Train the Random Forest + SHAP Explainer
 python src/train.py
 ```
 
----
+### 2. Launching the System
+```bash
+# Start the Flask Backend (default port 5005)
+python run_flask.py
 
-## 📂 Documentation Stack
-
-For detailed deep-dives into the project, refer to the following documents:
-
-*   📄 **[Project Proposal](PROJECT_PROPOSAL_FINAL.md)**: High-level objectives and academic scope.
-*   📚 **[Literature Review](LITERATURE_REVIEW.md)**: Analysis of the current IDS landscape.
-*   📐 **[System Design](SYSTEM_DESIGN.md)**: Detailed architecture and technical constraints.
-*   ⚡ **[Quick Start Guide](QUICK_START.md)**: Commands for running the server and dashboard.
-
----
-
-## 📂 File Structure
-
+# Start the React Dashboard (in a separate terminal)
+cd frontend
+npm run dev
 ```
+
+### 3. Running Benchmarks
+To generate the empirical data for the Forensic Lab:
+```bash
+python scripts/run_evaluation.py
+```
+
+---
+
+## 📂 Project Structure
+
+```text
 IS Project/
-├── src/                    # Core Production Logic
-│   ├── app.py              # Clean Flask API Factory
-│   ├── agent.py            # Agentic reasoning with Self-Correction
-│   ├── schemas.py          # Strict Pydantic Data Validation
-│   ├── services/           # Decoupled Business Logic
-│   │   ├── inference.py    # ML & SHAP Execution
-│   │   ├── geo_service.py  # Non-blocking IP Rep & Geolocation
-│   │   └── persistence.py  # Thread-safe Alert Storage
-│   ├── packet_capture.py   # Live Scapy-based sniffer
-│   ├── streaming_api.py    # Real-time data pipeline
-│   ├── train.py            # Model training & SMOTE balancing
-│   ├── data_loader.py      # Data loading & Feature mapping
-│   ├── evaluation_metrics.py # Comprehensive ML evaluation
-│   ├── config.py           # Central system configuration
-│   └── merge_data.py       # Data cleaning pipeline
-├── scripts/                # Helper & Evaluation Scripts
-│   └── run_evaluation.py   # Multi-dataset benchmarking
-├── frontend/               # React + Vite SOC Dashboard (Premium UI)
-│   ├── src/components/     # Modular UI Panels (Map, Chat, Dashboard)
-│   └── src/constants.js    # Centralized Frontend Config
-├── models/                 # Serialized RF Models & Scalers
-├── data/                   # CICIDS2017 & UNSW-NB15 datasets
-├── docs/                   # Benchmarks & Output Artifacts
-├── tests/                  # Unit, Integration & Stress Tests
-│   ├── test_flask_api.py   # Pytest suite with external mocks
-│   └── conftest.py         # Test configuration and fixtures
-├── run_flask.py            # Main API Launcher (Root)
-├── pytest.ini              # Pytest configuration
-├── requirements.txt        # Backend dependencies
-└── .env.example            # Environment template
+├── src/                    # Core Backend Logic
+│   ├── agent.py            # LangGraph Reasoning Engine for Threat Verification
+│   ├── app.py              # Flask API Application & REST Endpoints
+│   ├── config.py           # Central System Settings & Environment Variables
+│   ├── data_loader.py      # Feature Translation & Dataset Parsing
+│   ├── evaluation_metrics.py# Model Accuracy and Testing Metrics Helper
+│   ├── merge_data.py       # Utility for Merging CICIDS CSV Distributions
+│   ├── packet_capture.py   # Live Scapy-based Network Sniffer & PCAP Extractor
+│   ├── schemas.py          # Pydantic Schemas for Strict Data Validation
+│   ├── snort_comparison.py # Real Snort/Suricata Rule Benchmarking Engine
+│   ├── streaming_api.py    # Async Streaming API for Continuous Network Detection
+│   ├── train.py            # Random Forest ML Training & SMOTE Pipeline
+│   └── services/           # Decoupled Business Logic / Abstraction Layer
+│       ├── geo_service.py  # Map IPs to Geolocation via APIs
+│       ├── inference.py    # SHAP TreeExplainer & RF ML Prediction Engine
+│       └── persistence.py  # JSON Alert Logging & Data Persistence
+├── frontend/               # React + Vite SOC Dashboard Website
+│   ├── src/                # Frontend Application Code
+│   │   ├── components/     # Reusable React UI Components
+│   │   ├── utils/          # API Communication Handlers
+│   │   ├── ThreatGlobe.jsx # 3D Three.js Live Attack Geolocation Map
+│   │   ├── Analytics.jsx   # Reporting, Visualizations & Metrics Dashboard
+│   │   └── App.jsx         # Main React App Core & Routing
+│   └── package.json        # Frontend Dependencies & NPM Scripts
+├── scripts/                # Research, Utilities & Report Scripts
+│   ├── run_evaluation.py   # Cross-Dataset Benchmarking & Model Scorer
+│   └── dashboard.py        # Streamlit Backup Dashboard
+├── tests/                  # Pytest Unit & Integration Testing Suite
+│   ├── test_flask_api.py   # System API Endpoint Checks
+│   ├── test_agent_steps.py # Tests for LangGraph Node Functionalities
+│   └── test_integration_e2e.py # End-to-End full system logic tests
+├── data/                   # Datasets (CICIDS2017 & UNSW-NB15)
+├── models/                 # Serialized Pickle Models (`rf_model.pkl`, `scaler.pkl`)
+├── docs/                   # Full Technical Reporting & Academic Documentation
+│   ├── API.md              # REST API Interface Spec Details
+│   ├── SYSTEM_ARCHITECTURE.md # Architecture Blueprints
+│   └── FINAL_COMPREHENSIVE_REPORT.md # Academic Grading Project Report
+├── logs/                   # System Threat & Error Runtime Logging Outputs
+├── QUICK_START.md          # Easy Step-by-Step Setup Guide
+├── run_flask.py            # Core Entry Point script to boot backend application
+└── requirements.txt        # Python Backend Dependencies File
 ```
 
 ---
 
-## ⚖️ Status & Roadmap
-
-**Phase 1-3: Complete ✅**
-- [x] **Proposal:** Problem statement, objectives, timeline
-- [x] **Literature Review:** 10+ sources, gap analysis, research justification
-- [x] **System Design:** Architecture diagrams, threat model, evaluation plan
-
-**Phase 4: Prototype (Due Week 9) 🔵**
-- [x] Random Forest model training with SMOTE
-- [x] SHAP explainability layer
-- [x] Flask API `/detect` endpoint (Refactored Factory)
-- [x] Test suite with 28 integration tests via pytest-mock (100% Passing)
-- [x] GitHub commits showing incremental progress
-
-**Phase 5-7: Implementation (Weeks 10-15) ⏳**
-- [x] Full end-to-end pipeline (data → model → SHAP → agent → API)
-- [x] LangGraph agent with self-correcting conflict resolution
-- [x] AbuseIPDB + MITRE ATT&CK integration
-- [x] Cross-dataset evaluation (CICIDS2017 + UNSW-NB15)
-- [x] React/Vite SOC dashboard (UI Polish)
-- [x] Technical report + presentation
-- [x] **Production Hardening (New):**
-    - [x] API Key Security & Rate Limiting
-    - [x] Performance Benchmarking (sub-500ms latency)
-    - [x] Full Pipeline Integration Testing
-    - [x] Frontend Dashboard Unit Testing
+## 🛡️ Security & Hardening
+- **API Security:** All endpoints are protected by a 256-bit `INTERNAL_API_KEY`.
+- **Rate Limiting:** Enforced via `Flask-Limiter` to prevent DoS attacks on the LLM reasoning engine.
+- **Input Validation:** Strict Pydantic schemas enforce type-safety and feature range validation.
+- **CORS Protection:** Origin-locked configuration to prevent unauthorized cross-site requests.
 
 ---
 
-**Maintained by:** Muhammad Umar Farooq  
-**Academic Context:** AI-374 Information Security (2026)
+**Developed by:** Muhammad Umar Farooq  
+**Academic Context:** AI-374 Information Security (2026)  
+**License:** MIT
