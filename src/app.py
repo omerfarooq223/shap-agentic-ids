@@ -40,6 +40,7 @@ from src.services.inference import inference_service
 from src.services.geo_service import get_geo_location
 from src.services.persistence import alert_repo
 from src.streaming_api import create_streaming_blueprint
+from src.services.voice_service import voice_assistant
 
 # ---------------------------------------------------------------------------
 # Application factory
@@ -338,6 +339,14 @@ def detect():
     }
 
     alert_repo.push(response_dict)
+    
+    # Trigger voice announcement for high-risk threats
+    voice_assistant.announce_threat(
+        threat_type=response_dict.get("threat_type", "Unknown"),
+        risk_score=response_dict.get("risk_score", 0.0),
+        src_ip=response_dict.get("src_ip", "Unknown")
+    )
+    
     return jsonify(response_dict), 200
 
 
@@ -595,6 +604,49 @@ def get_benchmarks():
         "tpr": 0.0,
         "fpr": 0.0
     }), 200
+
+
+# ---------------------------------------------------------------------------
+# Red Teaming / Adversarial Battle
+# ---------------------------------------------------------------------------
+
+@app.route("/api/v1/red-team/battle", methods=["POST", "OPTIONS"])
+@limiter.limit(config.RATE_LIMIT_TEST)
+def run_red_team_battle():
+    """
+    POST /api/v1/red-team/battle - Trigger an autonomous adversarial battle.
+    Returns the history of the battle (Attacker vs Defender).
+    """
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+
+    api_key = request.headers.get("X-API-KEY")
+    if not api_key or api_key != config.get_internal_api_key():
+        return jsonify({"error": "Unauthorized"}), 401
+
+    try:
+        from src.services.red_team_service import red_team_service
+        
+        body = request.get_json(force=True) or {}
+        iterations = int(body.get("iterations", 3))
+        
+        # Run in a separate thread if it takes too long? 
+        # For now, we'll run it synchronously for the frontend to await.
+        # Max 5 iterations to prevent timeout.
+        iterations = min(max(1, iterations), 5)
+        
+        battle_history = red_team_service.run_battle(iterations=iterations)
+        
+        return jsonify({
+            "status": "success",
+            "iterations": iterations,
+            "battle_history": battle_history
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Red Team Battle failed: {e}")
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 # ---------------------------------------------------------------------------

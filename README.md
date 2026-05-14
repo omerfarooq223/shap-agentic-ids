@@ -1,3 +1,4 @@
+
 # 🛡️ SHAP-Explained Agentic IDS
 
 ### *Transforming Network Security with Explainable AI & Agentic Reasoning*
@@ -6,6 +7,7 @@
 ![React](https://img.shields.io/badge/React-20232A?style=flat&logo=react&logoColor=61DAFB)
 ![Flask](https://img.shields.io/badge/Flask-000000?style=flat&logo=flask&logoColor=white)
 ![Agentic](https://img.shields.io/badge/Agentic-LangGraph-orange?style=flat)
+![RedTeaming](https://img.shields.io/badge/Red_Teaming-Autonomous-red?style=flat)
 ![XAI](https://img.shields.io/badge/Explainable_AI-SHAP-blueviolet?style=flat)
 ![Security](https://img.shields.io/badge/Security-Hardened-success?style=flat)
 
@@ -13,6 +15,8 @@
 This project implements a **Hybrid Intrusion Detection System (IDS)** designed for modern Security Operations Centers (SOC). It bridges the gap between high-performance "black-box" machine learning and actionable human-readable security analysis. 
 
 The system leverages **Random Forest** classification for high-speed detection, **SHAP** (SHapley Additive exPlanations) for transparency, and a **LangGraph-driven Agent** for intelligent verification and contextualization. Unlike traditional systems that only flag threats, this platform explains *why* a flow was flagged and provides remediation steps based on live threat intelligence.
+
+**New in v2.5:** Integrated **Autonomous Red Teaming Framework** where AI agents (Attacker & Critic) continuously stress-test the Defender to find and fix "stealthy" bypass vulnerabilities.
 
 ---
 
@@ -47,10 +51,12 @@ flowchart TD
 
 *   **Explainable ML (XAI):** Integrated SHAP layer provides mathematical proof for every alert, mapping raw network features (entropy, ports, durations) to contribution scores.
 *   **Agentic Self-Correction:** A LangGraph reasoning engine uses **Llama 3.3 (via Groq)** to verify ML outputs against live reputation data and resolves conflicts between model predictions and network logic.
+*   **Autonomous Red Teaming:** A multi-agent adversarial framework where an **Attacker** generates payloads and a **Critic** analyzes defense logs to teach the attacker how to bypass the IDS, creating a continuous hardening loop.
 *   **Live Threat Intelligence:** Automated IP reputation checks via **AbuseIPDB** and automated mapping to **MITRE ATT&CK** tactics and techniques.
 *   **Real Packet Capture & Streaming API:** Native Scapy-based sniffer (`packet_capture.py`) for live interface capture, coupled with a highly concurrent REST Streaming API (`streaming_api.py`) for continuous line-rate packet analysis.
 *   **Real Snort/Suricata Comparison:** Integrated side-by-side behavioral forensic lab (`snort_comparison.py`) to benchmark the LLM Agent against traditional signature-based rules (addresses Tier S requirement).
 *   **Real-time SOC Dashboard:** A premium React-based interface featuring a 3D threat globe, live forensic chat, and high-density telemetry.
+*   **Voice-Driven Security Assistant:** Integrated audible alert system using both backend (macOS `say`) and frontend (Web Speech API) synthesis to provide hands-free threat reporting for SOC analysts.
 
 ---
 
@@ -111,6 +117,13 @@ To generate the empirical data for the Forensic Lab:
 python scripts/run_evaluation.py
 ```
 
+### 4. Autonomous Red Teaming (Adversarial Battle)
+To run the multi-agent battle (Attacker vs Defender):
+```bash
+# Run a 3-round battle to stress-test the IDS
+python scripts/red_team_battle.py 3
+```
+
 ---
 
 ## 📂 Project Structure
@@ -119,6 +132,8 @@ python scripts/run_evaluation.py
 IS Project/
 ├── src/                    # Core Backend Logic
 │   ├── agent.py            # LangGraph Reasoning Engine for Threat Verification
+│   ├── attacker.py         # Adversarial Agent for Red Teaming (New)
+│   ├── critic.py           # Analysis Agent for Adversarial Feedback (New)
 │   ├── app.py              # Flask API Application & REST Endpoints
 │   ├── config.py           # Central System Settings & Environment Variables
 │   ├── data_loader.py      # Feature Translation & Dataset Parsing
@@ -132,7 +147,8 @@ IS Project/
 │   └── services/           # Decoupled Business Logic / Abstraction Layer
 │       ├── geo_service.py  # Map IPs to Geolocation via APIs
 │       ├── inference.py    # SHAP TreeExplainer & RF ML Prediction Engine
-│       └── persistence.py  # JSON Alert Logging & Data Persistence
+│       ├── persistence.py  # JSON Alert Logging & Data Persistence
+│       └── voice_service.py # Audible Security Alert System (New)
 ├── frontend/               # React + Vite SOC Dashboard Website
 │   ├── src/                # Frontend Application Code
 │   │   ├── components/     # Reusable React UI Components
@@ -143,6 +159,7 @@ IS Project/
 │   └── package.json        # Frontend Dependencies & NPM Scripts
 ├── scripts/                # Research, Utilities & Report Scripts
 │   ├── run_evaluation.py   # Cross-Dataset Benchmarking & Model Scorer
+│   ├── red_team_battle.py  # Autonomous Adversarial Loop Engine (New)
 │   └── dashboard.py        # Streamlit Backup Dashboard
 ├── tests/                  # Pytest Unit & Integration Testing Suite
 │   ├── test_flask_api.py   # System API Endpoint Checks

@@ -191,14 +191,39 @@ class IDSAgent:
     def node_hypothesize(self, state: AgentState) -> AgentState:
         logger.info("[Agent] HYPOTHESIZE: calling LLM")
         hint = f"\n\nCORRECTION REQUIRED: Previous '{state.get('hypothesized_threat')}' contradicted SHAP." if state.get("_conflict_detected") else ""
-        prompt = f"System: Network Analyst\nContext: {state.get('observation_context')}{hint}\nInstruction: Classify threat. Return JSON: {{'threat_type': '...', 'reasoning': '...', 'llm_confidence': 0.0}}"
+        
+        # Enhanced Prompt to detect stealthy bypasses
+        prompt = (
+            "System: Expert Network Forensic Analyst\n"
+            f"Context: {state.get('observation_context')}{hint}\n"
+            "Instruction: Analyze the flow for 'Adversarial Evasion'. Attackers may try to blend in by keeping "
+            "packet lengths moderate or flow durations brief. Look for 'Negative Contributions' in SHAP "
+            "that might be artificial attempts to lower the risk score.\n\n"
+            "Return JSON: {'threat_type': '...', 'reasoning': '...', 'llm_confidence': 0.0, 'stealth_detected': bool}"
+        )
 
         try:
-            resp = self.client.chat.completions.create(model=config.GROQ_MODEL, messages=[{"role": "user", "content": prompt}], response_format={"type": "json_object"}, timeout=30)
+            resp = self.client.chat.completions.create(
+                model=config.GROQ_MODEL, 
+                messages=[{"role": "user", "content": prompt}], 
+                response_format={"type": "json_object"}, 
+                timeout=30
+            )
             res = json.loads(resp.choices[0].message.content)
             threat = res.get("threat_type", "Anomaly")
             if threat not in VALID_THREATS: threat = "Anomaly"
-            return {**state, "hypothesized_threat": threat, "llm_reasoning": res.get("reasoning"), "llm_confidence": float(res.get("llm_confidence", 0.5))}
+            
+            # If the LLM detects stealth, we boost the internal confidence
+            llm_conf = float(res.get("llm_confidence", 0.5))
+            if res.get("stealth_detected"):
+                llm_conf = max(llm_conf, 0.8)
+                
+            return {
+                **state, 
+                "hypothesized_threat": threat, 
+                "llm_reasoning": res.get("reasoning"), 
+                "llm_confidence": llm_conf
+            }
         except Exception as e:
             logger.error(f"LLM fail: {e}")
             return {**state, "hypothesized_threat": "Anomaly", "llm_reasoning": f"Error: {str(e)[:50]}"}
@@ -208,6 +233,11 @@ class IDSAgent:
         hypo = state.get("hypothesized_threat", "Anomaly")
         port = int(state.get("flow", {}).get("dst_port", 0))
         attempts = state.get("_rehypothesis_attempts", 0)
+        
+        # If we have a high-confidence LLM stealth detection, bypass standard conflict
+        if state.get("llm_confidence", 0) > 0.75:
+            return {**state, "_conflict_detected": False}
+
         if attempts > 0: return {**state, "_conflict_detected": False}
         
         conflict = False
@@ -218,7 +248,23 @@ class IDSAgent:
 
     def node_conclude(self, state: AgentState) -> AgentState:
         logger.info("[Agent] CONCLUDE: final alert")
-        risk = round(min(10.0, (state.get("ml_confidence", 0) * 6 + (state.get("threat_intel", {}).get("abuse_score", 0) / 10))), 1)
+        
+        # IMPROVED RISK CALCULATION:
+        # We now factor in LLM confidence more heavily if it detects an anomaly
+        ml_conf = state.get("ml_confidence", 0)
+        llm_conf = state.get("llm_confidence", 0)
+        abuse_score = state.get("threat_intel", {}).get("abuse_score", 0)
+        
+        # Base risk from ML and Intelligence
+        base_risk = (ml_conf * 5) + (abuse_score / 20)
+        
+        # Agentic Boost: If the LLM is confident something is wrong despite low ML score (Stealth)
+        agent_boost = 0
+        if llm_conf > 0.7 and ml_conf < 0.5:
+            agent_boost = (llm_conf * 4) # Boost for stealth detection
+            
+        risk = round(min(10.0, base_risk + agent_boost), 1)
+        
         threat = state.get("hypothesized_threat", "Anomaly")
         mitre = MITRE_MAP.get(threat, "T1000")
         rec = "CRITICAL: Block" if risk > 8 else "WARNING: Monitor" if risk > 5 else "INFO: Log"

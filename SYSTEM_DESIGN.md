@@ -26,8 +26,9 @@ A three-layer system combining detection, explainability, and agentic reasoning:
 - **Domain-Aware Observation:** Recognizes sensitive protocols (SSH, RDP, SMB) and prioritizes high-risk ports.
 - **Zero-Day Conflict Detection:** Flags anomalies where ML confidence is high but external reputation is clean, identifying potential novel threats.
 - **RAG-Enabled Analysis:** Synthesizes SHAP mathematical evidence with LLM-based reasoning and real-time AbuseIPDB intelligence.
+- **Voice-Driven Security Assistant:** Provides real-time audible telemetry for critical alerts, ensuring analysts are notified of high-risk events even when not actively monitoring the dashboard.
 
-**Innovation:** This system moves beyond static detection by implementing **Cross-Signal Verification**. We combine SHAP (verified local explanation) with a non-linear Agent loop that can resolve conflicts between internal ML models and external intelligence—crucial for catching Zero-Day attacks that haven't been indexed by threat databases yet.
+**Innovation:** This system moves beyond static detection by implementing **Cross-Signal Verification**. We combine SHAP (verified local explanation) with a non-linear Agent loop that can resolve conflicts between internal ML models and external intelligence. Additionally, v2.5 introduces an **Autonomous Red Teaming** framework that implements adversarial self-correction, allowing the system to harden itself against stealthy bypass attempts.
 
 ---
 
@@ -246,6 +247,38 @@ flowchart TD
    - Example Contradiction: LLM claims "DDoS" but top SHAP feature is "Port 22" (implying Brute-Force).
    - If a conflict is found, the agent sets a *correction hint* and loops back to **HYPOTHESIZE** to force the LLM to rethink its answer.
 5. **CONCLUDE**: Computes the final normalized Risk Score (0-10) using ML probabilities + Abuse Score, maps to MITRE ATT&CK, and generates an actionable SOC recommendation.
+
+---
+
+### 4.6 Multi-Agent Adversarial Framework (Red Teaming)
+
+To ensure the IDS is robust against evolving threats, the system includes an autonomous Red Teaming engine (`scripts/red_team_battle.py`). This implements a three-agent adversarial loop:
+
+1.  **Agent 1 (The Attacker)**:
+    - **Persona**: A sophisticated red-team penetration tester.
+    - **Goal**: Generate network flow features that simulate attacks (DDoS, Brute-Force, SQLi) while attempting to bypass the IDS.
+    - **Mechanism**: Uses LLM-based prompting to evolve payloads based on feedback from the Critic.
+
+2.  **Agent 2 (The Defender)**:
+    - **Persona**: The hardened `IDSAgent` (LangGraph-based).
+    - **Goal**: Detect attacks and explain *why* they were caught.
+    - **Mechanism**: Uses ML + SHAP + LLM reasoning with a specific focus on detecting "Stealthy Bypass" attempts.
+
+3.  **Agent 3 (The Critic)**:
+    - **Persona**: A neutral security auditor.
+    - **Goal**: Analyze the "battle" between the Attacker and Defender.
+    - **Mechanism**: Looks at SHAP contributions and Defender reasoning to provide technical feedback to the Attacker (e.g., "Lower your Bwd Packet Length to blend in").
+
+**The Adversarial Loop:**
+```mermaid
+flowchart LR
+    subgraph "Adversarial Training Ground"
+        A[Attacker Agent] -->|Dispatches Payload| B[Defender Agent]
+        B -->|Result: Success/Failure| C[Critic Agent]
+        C -->|Adversarial Feedback| A
+    end
+    B -.->|Hardens Logic| D[Production IDS]
+```
 
 ---
 
@@ -679,6 +712,7 @@ for flow in test_flows:
 | **Web Framework** | Flask + SSE | Synchronous execution perfectly matches LangGraph's state machine. Simple to implement Server-Sent Events (SSE) for streaming. | FastAPI, Django | While FastAPI is faster, its async-first paradigm complicates LangGraph's synchronous agent execution loop. |
 | **Dashboard** | React (Vite) | Premium SOC-grade interactive dashboard | Streamlit, Plotly Dash | Requires frontend expertise |
 | **Packet Capture**| Scapy | Live network interface sniffing | Libpcap, Wireshark | Pure Python implementation adds minor processing latency |
+| **Voice Assistant**| Web Speech API / Subprocess (say) | Provides hands-free audible alerts for high-risk threats | None | Limited to system-level synthesis |
 
 ---
 

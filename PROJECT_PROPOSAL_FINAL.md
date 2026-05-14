@@ -42,6 +42,11 @@ This provides actionable intelligence for security analysts.
    - Calls threat intelligence API: "Is source IP known malicious?"
    - Synthesizes results into risk score + recommendation
 
+4. **Adversarial Red Teaming Layer** (Multi-Agent Battle)
+   - Autonomous "Attacker" agent generates adaptive payloads.
+   - "Critic" agent provides feedback based on defense performance.
+   - Continuous loop to harden the Defender against "Stealthy Bypass" attempts.
+
 ---
 
 ## 3. Why This Approach
@@ -178,12 +183,13 @@ This proves the model generalizes to unseen attack types.
 - SHAP analysis on 100 sample flows (show which features matter)
 - GitHub commits (meaningful, documented)
 
-**Weeks 10-13 (Implementation Phase):**
 - Full agent loop with LangGraph
+- **Autonomous Red Teaming Framework** (Attacker/Critic/Defender loop)
 - GROQ LLM integration (with system prompt designed to avoid hallucinations)
 - AbuseIPDB API integration (threat intel lookup)
 - Real-time Packet Capture (`scapy`) and Streaming API endpoints
 - React/Vite Custom SOC Dashboard (real-time alerts + SHAP explanations + agent reasoning logs)
+- **Voice-Driven Security Assistant** (Audible telemetry for critical alerts)
 - Testing on UNSW-NB15 (cross-dataset evaluation)
 - Hybrid Evaluation Framework (Benchmarking against Snort)
 - Performance metrics: TPR, FPR, Precision, Recall on both datasets
@@ -227,7 +233,7 @@ This proves the model generalizes to unseen attack types.
 | Proposal | 1-2 | 5 | Problem + objectives | ✅ DONE |
 | Lit Review | 3-4 | 10 | Papers + gap analysis | ✅ DONE |
 | Design | 5-6 | 10 | Architecture + threat model | ✅ DONE |
-| **Prototype** | **7-9** | **30** | **50% working, GitHub commits** | ⏳ IN PROGRESS |
+| Prototype | 7-9 | 30 | 50% working, GitHub commits | ✅ DONE |
 | **Implementation** | **10-13** | **40** | **Full system, testing, video** | 🔲 PENDING |
 | Report | 14 | 15 | Final 20-page document | 🔲 PENDING |
 | Viva Prep | 15 | 10 | Q&A practice | 🔲 PENDING |
