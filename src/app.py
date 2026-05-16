@@ -623,31 +623,7 @@ def run_red_team_battle():
     api_key = request.headers.get("X-API-KEY")
     if not api_key or api_key != config.get_internal_api_key():
         return jsonify({"error": "Unauthorized"}), 401
-
-    try:
-        from src.services.red_team_service import red_team_service
-        
-        body = request.get_json(force=True) or {}
-        iterations = int(body.get("iterations", 3))
-        
-        # Run in a separate thread if it takes too long? 
-        # For now, we'll run it synchronously for the frontend to await.
-        # Max 5 iterations to prevent timeout.
-        iterations = min(max(1, iterations), 5)
-        
-        battle_history = red_team_service.run_battle(iterations=iterations)
-        
-        return jsonify({
-            "status": "success",
-            "iterations": iterations,
-            "battle_history": battle_history
-        }), 200
-        
-    except Exception as e:
-        logger.error(f"Red Team Battle failed: {e}")
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
-
+    
 
 # ---------------------------------------------------------------------------
 # Error handlers

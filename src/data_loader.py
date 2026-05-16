@@ -20,7 +20,7 @@ from src import config
 logger = logging.getLogger(__name__)
 
 
-def load_data(filepath: Path = config.CICIDS_PATH, sample_size: Optional[int] = None) -> pd.DataFrame:
+def load_data(filepath: Path = config.CICIDS_PATH, sample_size: Optional[int] = None, normalize: bool = False) -> pd.DataFrame:
     """
     Loads the primary CICIDS2017 dataset with optional stratified sampling.
     If the file doesn't exist, it attempts to trigger the merge pipeline.
@@ -38,16 +38,17 @@ def load_data(filepath: Path = config.CICIDS_PATH, sample_size: Optional[int] = 
         if sample_size:
             df = df.sample(n=sample_size, random_state=42)
             
-        # Independent Min-Max Normalization (Domain Adaptation)
-        num_features = config.get_numeric_features()
-        for col in num_features:
-            if col in df.columns:
-                col_min = df[col].min()
-                col_max = df[col].max()
-                if col_max > col_min:
-                    df.loc[:, col] = (df[col] - col_min) / (col_max - col_min)
-                else:
-                    df.loc[:, col] = 0.0
+        # Independent Min-Max Normalization (Domain Adaptation) - Now Optional
+        if normalize:
+            num_features = config.get_numeric_features()
+            for col in num_features:
+                if col in df.columns:
+                    col_min = df[col].min()
+                    col_max = df[col].max()
+                    if col_max > col_min:
+                        df.loc[:, col] = (df[col] - col_min) / (col_max - col_min)
+                    else:
+                        df.loc[:, col] = 0.0
         
         return df
     else:
@@ -65,7 +66,7 @@ def load_data(filepath: Path = config.CICIDS_PATH, sample_size: Optional[int] = 
             return _generate_mock_data(n_samples=sample_size or 5000)
 
 
-def load_unsw_nb15(filepath: Path = config.DATA_DIR / "UNSW_NB15_testing-set.csv") -> Optional[pd.DataFrame]:
+def load_unsw_nb15(filepath: Path = config.DATA_DIR / "UNSW_NB15_testing-set.csv", normalize: bool = False) -> Optional[pd.DataFrame]:
     """
     Loads the UNSW-NB15 dataset and adapts it to the CICIDS feature schema.
     
@@ -104,15 +105,16 @@ def load_unsw_nb15(filepath: Path = config.DATA_DIR / "UNSW_NB15_testing-set.csv
 
     df = df.rename(columns=mapping)
 
-    # Independent Normalization
-    for col in config.NUMERIC_FEATURES:
-        if col in df.columns:
-            col_min = df[col].min()
-            col_max = df[col].max()
-            if col_max > col_min:
-                df.loc[:, col] = (df[col] - col_min) / (col_max - col_min)
-            else:
-                df.loc[:, col] = 0.0
+    # Independent Normalization - Now Optional
+    if normalize:
+        for col in config.NUMERIC_FEATURES:
+            if col in df.columns:
+                col_min = df[col].min()
+                col_max = df[col].max()
+                if col_max > col_min:
+                    df.loc[:, col] = (df[col] - col_min) / (col_max - col_min)
+                else:
+                    df.loc[:, col] = 0.0
     
     # Harmonize Schema
     missing_cols = [col for col in config.NUMERIC_FEATURES if col not in df.columns]

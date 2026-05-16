@@ -30,8 +30,6 @@ logs/
 
 # Internal
 learning_resources/
-docs/
-!docs/evaluation_results.json
 scratch/
 
 # Frontend

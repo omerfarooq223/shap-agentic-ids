@@ -64,6 +64,9 @@ MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 # LLM Configuration
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
+# Voice Assistant Configuration
+ENABLE_BACKEND_VOICE = os.getenv("ENABLE_BACKEND_VOICE", "true").lower() == "true"
+
 # Cross-Dataset Robustness Mode
 # If True, the model will ONLY train on features that exist in both CICIDS and UNSW.
 # This ensures scientific validity for cross-dataset evaluation.

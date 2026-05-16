@@ -1,6 +1,7 @@
 import subprocess
 import logging
 import platform
+from src import config
 
 logger = logging.getLogger(__name__)
 
@@ -44,4 +45,4 @@ class VoiceAssistant:
             self.speak(message)
 
 # Global instance
-voice_assistant = VoiceAssistant(enabled=True)
+voice_assistant = VoiceAssistant(enabled=config.ENABLE_BACKEND_VOICE)

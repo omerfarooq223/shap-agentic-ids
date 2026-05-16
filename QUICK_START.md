@@ -37,6 +37,10 @@ GROQ_API_KEY=gsk_your_key_here
 
 # Required for IP reputation checks
 ABUSEIPDB_API_KEY=your_key_here
+
+# Optional: Toggle backend (system-level) voice assistant (true/false)
+# If testing locally with the browser open, set to false to avoid echo
+ENABLE_BACKEND_VOICE=false
 ```
 
 **Without these keys:**
@@ -150,7 +154,13 @@ The React-based Security Operations Center (SOC) dashboard includes:
 The dashboard automatically polls the Flask API every 5 seconds. To capture real packets from your network interface, start the packet capture engine with elevated privileges (requires `sudo`):
 
 ```bash
-sudo python -c "from src.packet_capture import LiveSniffer; LiveSniffer(interface='en0').start()"
+# 1. Ensure Flask is running with sudo (required for network sniffing):
+# sudo python run_flask.py
+
+# 2. Trigger the live capture via the API:
+curl -X POST http://localhost:5005/stream/start \
+  -H "Content-Type: application/json" \
+  -d '{"interface": "en0"}'
 ```
 Captured packets will be processed by the Agentic API and appear on the 3D globe and in the threat feed.
 
@@ -322,8 +332,3 @@ For issues or questions:
 2. Review `docs/API.md` for endpoint details
 3. Run `test_flask_api.py` to diagnose issues
 4. Check if API keys are properly configured
-
----
-
-**Last Updated:** 2026-05-05  
-**Status:** ✅ Ready to use

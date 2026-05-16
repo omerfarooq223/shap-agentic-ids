@@ -22,6 +22,7 @@ from sklearn.metrics import (
     classification_report, confusion_matrix, 
     precision_score, recall_score, f1_score, roc_auc_score
 )
+from sklearn.preprocessing import MinMaxScaler
 import shap
 
 from src import config
@@ -55,12 +56,19 @@ def train_model() -> None:
     
     logger.info(f"Split completed: Train={len(X_train)}, Val={len(X_val)}, Test={len(X_test)}")
     
-    # 3. SMOTE Balancing
+    # 3. Scaling
+    logger.info("Initializing MinMaxScaler...")
+    scaler = MinMaxScaler()
+    X_train_scaled = pd.DataFrame(scaler.fit_transform(X_train), columns=X_train.columns)
+    X_val_scaled = pd.DataFrame(scaler.transform(X_val), columns=X_val.columns)
+    X_test_scaled = pd.DataFrame(scaler.transform(X_test), columns=X_test.columns)
+    
+    # 4. SMOTE Balancing (On Scaled Data)
     logger.info(f"Applying SMOTE (strategy={config.SMOTE_STRATEGY})...")
     smote = SMOTE(sampling_strategy=config.SMOTE_STRATEGY, random_state=42)
-    X_train_bal, y_train_bal = smote.fit_resample(X_train, y_train)
+    X_train_bal, y_train_bal = smote.fit_resample(X_train_scaled, y_train)
     
-    # 4. Training
+    # 5. Training
     logger.info("Fitting Random Forest (n_estimators=100)...")
     rf = RandomForestClassifier(
         n_estimators=100,
@@ -70,11 +78,11 @@ def train_model() -> None:
     )
     rf.fit(X_train_bal, y_train_bal)
     
-    # 5. Evaluation
-    _evaluate_model(rf, X_test, y_test)
+    # 6. Evaluation
+    _evaluate_model(rf, X_test_scaled, y_test)
     
-    # 6. Serialization
-    _save_artifacts(rf)
+    # 7. Serialization
+    _save_artifacts(rf, scaler)
 
 
 def _evaluate_model(model: RandomForestClassifier, X_test: pd.DataFrame, y_test: pd.Series) -> None:
@@ -91,7 +99,7 @@ def _evaluate_model(model: RandomForestClassifier, X_test: pd.DataFrame, y_test:
     logger.info("\nClassification Report:\n" + classification_report(y_test, y_pred))
 
 
-def _save_artifacts(model: RandomForestClassifier) -> None:
+def _save_artifacts(model: RandomForestClassifier, scaler: MinMaxScaler) -> None:
     """Saves the trained model and initializes/saves the SHAP explainer."""
     # Ensure model directory exists
     os.makedirs(config.MODEL_DIR, exist_ok=True)
@@ -99,6 +107,10 @@ def _save_artifacts(model: RandomForestClassifier) -> None:
     # Save Model
     joblib.dump(model, config.RF_MODEL_PATH)
     logger.info(f"Model serialized to {config.RF_MODEL_PATH}")
+    
+    # Save Scaler
+    joblib.dump(scaler, config.SCALER_PATH)
+    logger.info(f"Scaler serialized to {config.SCALER_PATH}")
     
     # Serialize SHAP Explainer
     logger.info("Initializing SHAP TreeExplainer...")

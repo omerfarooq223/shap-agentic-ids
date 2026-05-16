@@ -26,7 +26,12 @@ The core logic follows a non-linear reasoning pipeline implemented with **LangGr
 
 ```mermaid
 flowchart TD
-    A[Network Flow] --> B[ML Detection Engine]
+    subgraph "External Inputs"
+        Capture[Live Packet Capture] --> Pipe[Streaming API]
+        RedTeam[Adversarial Attacker] --> Pipe
+    end
+
+    Pipe --> B[ML Detection Engine]
     B --> C{Threat?}
     C -- No --> D[Log Benign]
     C -- Yes --> E[SHAP Explainer]
@@ -40,7 +45,14 @@ flowchart TD
         J --> K[Conclude: Actionable Alert]
     end
     
-    K --> L[SOC Dashboard]
+    subgraph "Feedback & Output"
+        K --> L[SOC Dashboard]
+        K --> O[Voice Assistant]
+        K --> P[Forensic Lab: Snort/Suricata Benchmarking]
+        K --> Q[Critic Agent]
+        Q -->|Feedback| RedTeam
+    end
+    
     H <--> M[(AbuseIPDB API)]
     I <--> N[MITRE ATT&CK Mapping]
 ```
@@ -57,6 +69,7 @@ flowchart TD
 *   **Real Snort/Suricata Comparison:** Integrated side-by-side behavioral forensic lab (`snort_comparison.py`) to benchmark the LLM Agent against traditional signature-based rules (addresses Tier S requirement).
 *   **Real-time SOC Dashboard:** A premium React-based interface featuring a 3D threat globe, live forensic chat, and high-density telemetry.
 *   **Voice-Driven Security Assistant:** Integrated audible alert system using both backend (macOS `say`) and frontend (Web Speech API) synthesis to provide hands-free threat reporting for SOC analysts.
+*   **Empirical Cross-Dataset Validation:** System performance is rigorously tested across heterogeneous datasets (CICIDS2017 & UNSW-NB15) to ensure model generalization and robustness against novel attack patterns.
 
 ---
 
@@ -159,8 +172,7 @@ IS Project/
 │   └── package.json        # Frontend Dependencies & NPM Scripts
 ├── scripts/                # Research, Utilities & Report Scripts
 │   ├── run_evaluation.py   # Cross-Dataset Benchmarking & Model Scorer
-│   ├── red_team_battle.py  # Autonomous Adversarial Loop Engine (New)
-│   └── dashboard.py        # Streamlit Backup Dashboard
+│   └── red_team_battle.py  # Autonomous Adversarial Loop Engine (New)
 ├── tests/                  # Pytest Unit & Integration Testing Suite
 │   ├── test_flask_api.py   # System API Endpoint Checks
 │   ├── test_agent_steps.py # Tests for LangGraph Node Functionalities
