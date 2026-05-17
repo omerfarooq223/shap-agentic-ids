@@ -41,6 +41,7 @@ from src.services.geo_service import get_geo_location
 from src.services.persistence import alert_repo
 from src.streaming_api import create_streaming_blueprint
 from src.services.voice_service import voice_assistant
+from src.services.red_team_service import red_team_service
 
 # ---------------------------------------------------------------------------
 # Application factory
@@ -249,7 +250,57 @@ def detect():
     
     logger.info(f"ML score: {ml_score:.3f}")
 
-    if ml_score < 0.5:
+    # ── 2.5. Borderline Evasion Guard (The Evasion Guard) ────────────────
+    escalated = False
+    escalation_reason = ""
+    shap_explanation = []
+    
+    # Borderline confidence (0.35 to 0.49) signals high uncertainty in the Random Forest
+    if 0.35 <= ml_score < 0.50:
+        # Pre-compute SHAP values to scan for stealth feature anomalies (Zero-Day Evasion Guard)
+        try:
+            shap_explanation = inference_service.explain(flow)
+        except Exception as e:
+            logger.warning(f"Evasion Guard SHAP check fail: {e}")
+            shap_explanation = []
+            
+        # Scan SHAP features for any highly suspicious positive contribution
+        max_shap_impact = 0.0
+        suspicious_feature = ""
+        for feat in shap_explanation:
+            contrib = feat.get("contribution", 0.0)
+            if contrib > max_shap_impact:
+                max_shap_impact = contrib
+                suspicious_feature = feat.get("feature", "")
+                
+        # Check Threat Intel dynamically
+        import requests
+        abuse_score = 0
+        if not config.is_private_ip(flow["src_ip"]) and config.ABUSEIPDB_API_KEY:
+            try:
+                resp = requests.get(
+                    "https://api.abuseipdb.com/api/v2/check",
+                    params={"ipAddress": flow["src_ip"]},
+                    headers={"Key": config.ABUSEIPDB_API_KEY},
+                    timeout=2
+                )
+                if resp.status_code == 200:
+                    abuse_score = resp.json()["data"]["abuseConfidenceScore"]
+            except Exception as e:
+                logger.warning(f"Evasion Guard AbuseIPDB check fail: {e}")
+        
+        # Apply Multi-Tiered Escalation Rules
+        if abuse_score >= 50:
+            escalated = True
+            escalation_reason = f"Borderline ML confidence ({ml_score:.3f}) with high AbuseIPDB malicious score ({abuse_score}%). Escalated for Agent review."
+        elif flow["dst_port"] in [22, 80, 443] and ml_score >= 0.40:
+            escalated = True
+            escalation_reason = f"Borderline ML confidence ({ml_score:.3f}) targeting sensitive port {flow['dst_port']}. Escalated for Agent review."
+        elif max_shap_impact >= 0.12:
+            escalated = True
+            escalation_reason = f"Stealth Evasion Signature: Feature '{suspicious_feature}' has highly abnormal positive impact ({max_shap_impact:.3f}) despite low overall confidence. Escalated for Agent review."
+
+    if ml_score < 0.5 and not escalated:
         geo = get_geo_location(flow["src_ip"])
         response = DetectResponse(
             id=int(time.time() * 1000),
@@ -263,19 +314,23 @@ def detect():
             threat_type="benign",
             recommendation="No action required.",
             geo_location=geo,
-            agent_reasoning=["ML model determined flow is benign."],
+            agent_reasoning=["ML model determined flow is benign. Bypassed deep audit."],
         )
         return jsonify(response.model_dump()), 200
 
+    if escalated:
+        logger.info(f"[Evasion Guard] {escalation_reason}")
+
     # ── 3. SHAP Explainability ────────────────────────────────────────────
-    try:
-        shap_explanation = inference_service.explain(flow)
-    except ValueError as e:
-        logger.warning(f"SHAP explanation failed due to feature validation: {e}")
-        shap_explanation = []  # Fallback: continue with empty explanation
-    except Exception as e:
-        logger.error(f"SHAP explanation error: {e}", exc_info=True)
-        shap_explanation = []  # Fallback: continue with empty explanation
+    if not shap_explanation:
+        try:
+            shap_explanation = inference_service.explain(flow)
+        except ValueError as e:
+            logger.warning(f"SHAP explanation failed due to feature validation: {e}")
+            shap_explanation = []  # Fallback: continue with empty explanation
+        except Exception as e:
+            logger.error(f"SHAP explanation error: {e}", exc_info=True)
+            shap_explanation = []  # Fallback: continue with empty explanation
 
     # ── 4. Agentic Reasoning (with self-correction) ───────────────────────
     t0 = time.time()
@@ -316,7 +371,7 @@ def detect():
         src_ip=flow["src_ip"],
         dst_ip=flow["dst_ip"],
         dst_port=flow["dst_port"],
-        anomaly=True,
+        anomaly=True if (ml_score >= 0.5 or risk > 5.0) else False,
         ml_confidence=ml_score,
         shap_explanation=shap_explanation,
         threat_type=final_state.get("hypothesized_threat", "Unknown"),
@@ -623,7 +678,55 @@ def run_red_team_battle():
     api_key = request.headers.get("X-API-KEY")
     if not api_key or api_key != config.get_internal_api_key():
         return jsonify({"error": "Unauthorized"}), 401
-    
+
+    try:
+        body = request.get_json(force=True) or {}
+        iterations = body.get("iterations", 3)
+        if not isinstance(iterations, int) or iterations < 1 or iterations > 5:
+            iterations = 3
+    except Exception:
+        iterations = 3
+
+    try:
+        battle_history = red_team_service.run_battle(iterations)
+        return jsonify({"status": "success", "battle_history": battle_history}), 200
+    except Exception as e:
+        logger.error(f"Red team battle failed: {e}", exc_info=True)
+        return jsonify({"error": "Battle simulation failed", "details": str(e)}), 500
+
+@app.route("/api/v1/voice/persona", methods=["POST", "OPTIONS"])
+def set_voice_persona():
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+        
+    try:
+        body = request.get_json(force=True) or {}
+        persona = body.get("persona", "jarvis").lower()
+        if persona in ["jarvis", "friday", "classic"]:
+            config.VOICE_PERSONA = persona
+            logger.info(f"Voice persona dynamically updated to: {persona}")
+            return jsonify({"status": "success", "persona": persona}), 200
+        return jsonify({"error": f"Invalid persona: {persona}"}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/api/v1/voice/toggle", methods=["POST", "OPTIONS"])
+def toggle_voice_state():
+    if request.method == "OPTIONS":
+        return jsonify({}), 200
+        
+    try:
+        body = request.get_json(force=True) or {}
+        enabled = body.get("enabled", False)
+        config.ENABLE_BACKEND_VOICE = bool(enabled)
+        
+        from src.services.voice_service import voice_assistant
+        voice_assistant.enabled = bool(enabled)
+        
+        logger.info(f"Backend voice status dynamically synced to: {enabled}")
+        return jsonify({"status": "success", "enabled": enabled}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ---------------------------------------------------------------------------
 # Error handlers

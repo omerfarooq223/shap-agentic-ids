@@ -66,6 +66,7 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # Voice Assistant Configuration
 ENABLE_BACKEND_VOICE = os.getenv("ENABLE_BACKEND_VOICE", "true").lower() == "true"
+VOICE_PERSONA = os.getenv("VOICE_PERSONA", "jarvis").lower()
 
 # Cross-Dataset Robustness Mode
 # If True, the model will ONLY train on features that exist in both CICIDS and UNSW.

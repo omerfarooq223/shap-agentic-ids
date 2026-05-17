@@ -144,7 +144,7 @@ The React-based Security Operations Center (SOC) dashboard includes:
 - 🔬 **Forensic Lab**: Live performance comparison (ML-IDS vs Snort vs Suricata).
 - 🤖 **Agent Reasoning Logs**: Transparent view of the AI decision-making process.
 - 💬 **Forensic Chat**: RAG-powered interface to query the system about specific threats.
-- 🔊 **Voice Security Assistant**: Real-time audible threat alerts for hands-free SOC monitoring.
+- 🔊 **Voice Security Assistant**: Real-time audible threat alerts supporting customizable assistant personas (**Jarvis**, **Friday**, **Classic**) with dynamic pause calibrations and frontend/backend mute synchronization.
 
 ---
 
@@ -211,7 +211,7 @@ graph TD
     end
 
     subgraph Backend ["⚙️ Detection & Analysis (Flask API)"]
-        L1[Layer 1: ML Detection<br/>Random Forest + SMOTE]
+        L1[Layer 1: ML Detection<br/>Random Forest + SMOTE + Evasion Guard]
         L2[Layer 2: Explainability<br/>SHAP TreeExplainer]
         L3[Layer 3: Agentic Loop<br/>LangGraph + GROQ]
     end
@@ -223,7 +223,7 @@ graph TD
     end
 
     UI <==>|REST API / JSON| Backend
-    L1 -->|Flagged Anomalies| L2
+    L1 -->|Flagged Anomalies & Escalated Flows| L2
     L2 -->|Feature Attribution| L3
     L3 <==>|Verification| External
     L3 -->|Actionable Intelligence| UI

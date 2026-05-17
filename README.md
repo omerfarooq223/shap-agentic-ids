@@ -32,9 +32,13 @@ flowchart TD
     end
 
     Pipe --> B[ML Detection Engine]
-    B --> C{Threat?}
-    C -- No --> D[Log Benign]
+    B --> C{P_attack >= 0.5?}
     C -- Yes --> E[SHAP Explainer]
+    C -- No --> EG{Evasion Guard: 0.35-0.49?}
+    
+    EG -- Safe Benign --> D[Log Benign]
+    EG -- Escalated: High Threat Intel / Port Risk --> E
+    
     E --> F[Agentic Reasoning Pipeline]
     
     subgraph "Agentic Reasoning (LangGraph)"

@@ -14,6 +14,7 @@ A three-layer system combining detection, explainability, and agentic reasoning:
 **Layer 1: Detection**
 - Random Forest classifier on CICIDS2017 flows
 - SMOTE balancing to handle 99% benign class
+- **Evasion Guard (The Evasion Guard):** Borderline Escalation (0.35 - 0.49) with dynamic Threat Intel pre-check for stealth detection
 - Output: anomaly flag + probability
 
 **Layer 2: Explainability**
@@ -28,7 +29,7 @@ A three-layer system combining detection, explainability, and agentic reasoning:
 - **RAG-Enabled Analysis:** Synthesizes SHAP mathematical evidence with LLM-based reasoning and real-time AbuseIPDB intelligence.
 - **Voice-Driven Security Assistant:** Provides real-time audible telemetry for critical alerts, ensuring analysts are notified of high-risk events even when not actively monitoring the dashboard.
 
-**Innovation:** This system moves beyond static detection by implementing **Cross-Signal Verification**. We combine SHAP (verified local explanation) with a non-linear Agent loop that can resolve conflicts between internal ML models and external intelligence. Additionally, v2.5 introduces an **Autonomous Red Teaming** framework that implements adversarial self-correction, allowing the system to harden itself against stealthy bypass attempts.
+**Innovation:** This system moves beyond static detection by implementing **Cross-Signal Verification**. We combine SHAP (verified local explanation) with a non-linear Agent loop that can resolve conflicts between internal ML models and external intelligence. Additionally, v2.5 introduces an **Autonomous Red Teaming** framework that implements adversarial self-correction, alongside an in-line **Evasion Guard** that dynamically escalates stealthy borderline attacks to Agent reasoning even when the base ML model flags them as "benign".
 
 ---
 
@@ -42,10 +43,14 @@ flowchart TD
         C --> D[Shape: N flows, 80 features]
     end
     D --> E
-    subgraph LAYER 2: DETECTION
+    subgraph LAYER 2: DETECTION & ESCALATION
         E[Random Forest Classifier] -->|Trained with SMOTE| F{P_attack > 0.5?}
-        F -->|No| Z([Benign Flow])
-        F -->|Yes| G[SHAP Explainability]
+        F -->|No| EG{Evasion Guard: 0.35-0.49?}
+        EG -->|No: Safe Benign| Z([Benign Flow])
+        EG -->|Yes: Check AbuseIPDB| IP{IP Score >= 50% or High-Stakes Port?}
+        IP -->|No| Z
+        IP -->|Yes: Force Escalation| G[SHAP Explainability]
+        F -->|Yes| G
         G --> H[Compute Top Feature Contributions]
     end
     H --> I
@@ -68,9 +73,9 @@ flowchart TD
 flowchart TD
     A((Analyst / Network)) -->|Flows / Live Packets| B[1.0: EXTRACT FEATURES]
     B --> C[2.0: CLASSIFY RF]
-    C --> D{Anomaly?}
+    C --> D{Anomaly or Evasion?}
     D -->|No| E([Return: Benign])
-    D -->|Yes| F[3.0: SHAP Analysis]
+    D -->|Yes: Escalated| F[3.0: SHAP Analysis]
     F --> G[4.0: AGENT LOOP]
     G --> H[5.0: VERIFY]
     H --> I[6.0: SCORE]
@@ -177,6 +182,23 @@ predictions = (probs[:, 1] > 0.5).astype(int)
 - Specificity (TNR): % of benign flows correctly allowed
 - Precision: Of flagged flows, % that are true attacks
 - Recall/F1-Score: Balance both
+
+---
+
+### 4.3.5 Evasion Guard (Borderline Escalation Guard)
+
+**Objective:**
+Standard intrusion detection systems implement a binary threshold (e.g. `P_attack > 0.5`) to determine anomalies. A sophisticated attacker can perform adversarial evasion by slightly modifying network payloads (e.g. reducing packet size or slow brute force) to lower the prediction score to borderline values (e.g. `0.38` - `0.48`), bypassing standard classifiers entirely. 
+
+To address this, our system introduces the **Evasion Guard** inside the inference pipeline to check all borderline predictions.
+
+**Mechanism:**
+1. **Confidence Range:** If `0.35 <= P_attack < 0.50`, the Random Forest model is deemed uncertain.
+2. **Reputation Pre-Check:** The Evasion Guard retrieves the dynamic malicious score of the Source IP from **AbuseIPDB**.
+3. **Escalation Rules:**
+   - **Rule A (Dynamic Threat Intel):** If the Source IP has an Abuse Score $\ge 50\%$, the flow is flagged as suspicious.
+   - **Rule B (High-Stakes Protocol Target):** If the destination targets key services (SSH `22`, HTTP `80`, HTTPS `443`) and the prediction score $\ge 0.40$, it is flagged.
+4. **Agentic Escalation:** If flagged, the early-exit is bypassed. The flow is forcefully routed to **Layer 2 (SHAP)** and **Layer 3 (LangGraph Agents)**. The Agent’s `agent_boost` logic analyzes the SHAP features and can overrule the Random Forest classification to mark it as `anomaly=True` dynamically.
 
 ---
 
