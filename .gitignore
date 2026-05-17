@@ -12,10 +12,7 @@ data/
 *.pcap
 *.parquet
 
-# Models & Logs
-models/
 logs/
-*.pkl
 *.joblib
 *.log
 *.sqlite

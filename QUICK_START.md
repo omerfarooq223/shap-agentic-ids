@@ -204,21 +204,23 @@ Click **STRESS TEST** to simulate 10 rapid threats for load testing.
 ## Architecture Diagram
 ```mermaid
 graph TD
-    subgraph Frontend ["🖥️ User Interface (React + Vite)"]
+  subgraph Frontend ["🖥️ User Interface (React + Vite)"]
         UI[Dashboard UI]
         Map[3D Threat Topology]
         ShapUI[SHAP Explainer View]
+    Voice[Voice Security Assistant]
     end
 
     subgraph Backend ["⚙️ Detection & Analysis (Flask API)"]
         L1[Layer 1: ML Detection<br/>Random Forest + SMOTE + Evasion Guard]
         L2[Layer 2: Explainability<br/>SHAP TreeExplainer]
         L3[Layer 3: Agentic Loop<br/>LangGraph + GROQ]
+    RT[Layer 4: Red Teaming<br/>Attacker + Critic]
     end
 
     subgraph External ["🌐 Intelligence & Logic"]
         Intel[AbuseIPDB API]
-        MITRE[MITRE ATT&CK Mapping]
+        MITRE[MITRE ATTACK Mapping]
         LLM[GROQ Llama-3.3-70b]
     end
 
@@ -227,15 +229,20 @@ graph TD
     L2 -->|Feature Attribution| L3
     L3 <==>|Verification| External
     L3 -->|Actionable Intelligence| UI
+    RT -->|Adversarial Feedback| L1
+    L3 -->|Alert Output| Voice
 
     %% Styling
-    classDef ui fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
-    classDef logic fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px;
-    classDef api fill:#f3e5f5,stroke:#4a148c,stroke-width:2px;
+    classDef ui fill:#d9ecff,stroke:#0f4c81,stroke-width:2px,color:#102a43;
+    classDef logic fill:#dff3e4,stroke:#1f6b3a,stroke-width:2px,color:#102a43;
+    classDef api fill:#fff2cc,stroke:#8a5b00,stroke-width:2px,color:#102a43;
+    classDef warn fill:#ffe0e0,stroke:#b42318,stroke-width:2px,color:#102a43;
 
     class UI,Map,ShapUI ui;
     class L1,L2,L3 logic;
     class Intel,MITRE,LLM api;
+    class Voice warn;
+    class RT warn;
 ```
 
 ---
@@ -303,6 +310,26 @@ rm -rf logs/*
 # Rebuild models
 python src/train.py --force
 ```
+
+---
+
+## 🐳 Docker Deployment (1 Command)
+
+If you have Docker & Docker Compose installed, deploy entire system locally in one command:
+
+```bash
+# Create .env file first with your API keys
+cp .env.example .env
+# Edit .env with your GROQ_API_KEY and ABUSEIPDB_API_KEY
+
+# Start both backend and frontend
+docker-compose up --build
+
+# Access dashboard at: http://localhost:5173
+# API at: http://localhost:5005
+```
+
+Backend will auto-restart on crash, and both services will be healthchecked every 30 seconds.
 
 ---
 

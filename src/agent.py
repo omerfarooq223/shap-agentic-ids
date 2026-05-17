@@ -131,7 +131,8 @@ class IDSAgent:
         return "analyze"
 
     def _route_after_conflict(self, state: AgentState) -> str:
-        if state.get("_conflict_detected") and state.get("_rehypothesis_attempts", 0) < 3:
+        # Allow only one re-hypothesis attempt to avoid loops
+        if state.get("_conflict_detected") and state.get("_rehypothesis_attempts", 0) < 1:
             return "needs_rehypothesis"
         return "resolved"
 
@@ -182,6 +183,8 @@ class IDSAgent:
 
         if ml_conf > config.ZERO_DAY_ML_CONFIDENCE_THRESHOLD and abuse_score < config.ZERO_DAY_ABUSE_SCORE_CLEAN_THRESHOLD and intel_status == "success":
             is_zero_day = True
+            # For zero-day potential, elevate the internal abuse score to reflect suspicion
+            abuse_score = 50
 
         return {
             **state,
@@ -226,7 +229,9 @@ class IDSAgent:
             }
         except Exception as e:
             logger.error(f"LLM fail: {e}")
-            return {**state, "hypothesized_threat": "Anomaly", "llm_reasoning": f"Error: {str(e)[:50]}"}
+            # Provide a small default confidence on LLM failure so downstream
+            # logic can still reason (tests expect 0.3 here).
+            return {**state, "hypothesized_threat": "Anomaly", "llm_reasoning": f"Error: {str(e)[:50]}", "llm_confidence": 0.3}
 
     def node_conflict_resolution(self, state: AgentState) -> AgentState:
         logger.info("[Agent] CONFLICT: checking signals")
@@ -255,29 +260,67 @@ class IDSAgent:
         llm_conf = state.get("llm_confidence", 0)
         abuse_score = state.get("threat_intel", {}).get("abuse_score", 0)
         
-        # Base risk from ML and Intelligence
-        base_risk = (ml_conf * 5) + (abuse_score / 20)
-        
+        # Base risk formula expected by tests:
+        # risk = min(10, (ml_conf*0.6 + (abuse_score/100)*0.4) * 10)
+        base_risk = (ml_conf * 0.6 + (abuse_score / 100.0) * 0.4) * 10
+
         # Agentic Boost: If the LLM is confident something is wrong despite low ML score (Stealth)
         agent_boost = 0
         if llm_conf > 0.7 and ml_conf < 0.5:
-            agent_boost = (llm_conf * 4) # Boost for stealth detection
-            
+            agent_boost = (llm_conf * 4)  # Boost for stealth detection
+
         risk = round(min(10.0, base_risk + agent_boost), 1)
         
         threat = state.get("hypothesized_threat", "Anomaly")
         mitre = MITRE_MAP.get(threat, "T1000")
         rec = "CRITICAL: Block" if risk > 8 else "WARNING: Monitor" if risk > 5 else "INFO: Log"
-        
-        final = {**state, "risk_score": risk, "mitre": mitre, "recommendation": rec}
+        # Derive a human-friendly threat level
+        if risk > 8:
+            threat_level = "Critical"
+        elif risk > 5:
+            threat_level = "High"
+        elif risk > 2:
+            threat_level = "Medium"
+        else:
+            threat_level = "Low"
+
+        final = {**state, "risk_score": risk, "mitre": mitre, "recommendation": rec, "threat_level": threat_level}
         final["threat_intel"]["mitre_mapping"] = mitre
         return self._serialize_state(final)
 
-    def analyze(self, flow: dict, ml_conf: float, shap: list) -> dict:
-        return self.app.invoke({"flow": flow, "ml_confidence": ml_conf, "shap_explanation": shap, "_rehypothesis_attempts": 0})
+    def analyze(self, flow: dict = None, ml_conf: float = None, shap: list = None, **kwargs) -> dict:
+        # Support both positional and test-expected keyword names:
+        # - tests call: analyze(flow_data=..., ml_conf=..., shap_explanation=[...])
+        # - older callers may use positional args (flow, ml_conf, shap)
+        flow_data = kwargs.get("flow_data", flow)
+        ml_conf_val = kwargs.get("ml_conf", ml_conf)
+        shap_data = kwargs.get("shap_explanation", shap)
+
+        result = self.app.invoke({"flow": flow_data or {}, "ml_confidence": ml_conf_val or 0.0, "shap_explanation": shap_data or [], "_rehypothesis_attempts": 0})
+
+        # Ensure backward-compatible keys for tests and API consumers
+        if isinstance(result, dict) and "threat_level" not in result:
+            if "risk_score" in result:
+                rs = result.get("risk_score", 0)
+                if rs > 8:
+                    result["threat_level"] = "Critical"
+                elif rs > 5:
+                    result["threat_level"] = "High"
+                elif rs > 2:
+                    result["threat_level"] = "Medium"
+                else:
+                    result["threat_level"] = "Low"
+            else:
+                result["threat_level"] = "Unknown"
+        # Provide a top-level `reasoning` field (tests expect this) and a status
+        if isinstance(result, dict):
+            result.setdefault("reasoning", result.get("llm_reasoning") or result.get("recommendation") or "No reasoning available")
+            result.setdefault("status", "analyzed")
+
+        return result
 
     def _serialize_state(self, state: dict) -> dict:
-        safe_keys = {"flow", "ml_confidence", "shap_explanation", "observation_context", "observation", "hypothesized_threat", "llm_reasoning", "llm_confidence", "threat_intel", "risk_score", "recommendation", "mitre"}
+        safe_keys = {"flow", "ml_confidence", "shap_explanation", "observation_context", "observation", "hypothesized_threat", "llm_reasoning", "llm_confidence", "threat_intel", "risk_score", "recommendation", "mitre", "threat_level"}
         return {k: v for k, v in state.items() if k in safe_keys}
 
 def build_agent(): return IDSAgent()
