@@ -42,6 +42,7 @@ from src.services.persistence import alert_repo
 from src.streaming_api import create_streaming_blueprint
 from src.services.voice_service import voice_assistant
 from src.services.red_team_service import red_team_service
+from src.services.rag_service import rag_service
 
 # ---------------------------------------------------------------------------
 # Application factory
@@ -98,6 +99,7 @@ def initialize_system() -> bool:
         inference_service.load()
         _agent = build_agent()
         alert_repo.load()
+        rag_service.rebuild_index(alert_repo.get_all())
 
         logger.info("=" * 80)
         logger.info("✓ SYSTEM INITIALIZED SUCCESSFULLY")
@@ -124,8 +126,19 @@ def _log_request():
 
 
 # ---------------------------------------------------------------------------
-# Health & status
+# Root & Health endpoints
 # ---------------------------------------------------------------------------
+
+@app.route("/", methods=["GET"])
+def root():
+    """API root — returns service info."""
+    return jsonify({
+        "service": "SHAP Agentic IDS",
+        "version": "2.0",
+        "status": "online",
+        "docs": "See /health for status, /detect for inference, /chat for RAG-enabled analyst"
+    }), 200
+
 
 @app.route("/health", methods=["GET"])
 @limiter.limit(config.RATE_LIMIT_HEALTH)
@@ -150,6 +163,7 @@ def status():
             "components": {
                 "ml_model": "loaded" if inference_service.is_ready else "not_loaded",
                 "agent_pipeline": "ready" if _agent else "not_ready",
+                "rag_knowledge_base": f"{rag_service.chunk_count} chunks indexed",
             },
         }
     ), 200
@@ -423,34 +437,13 @@ def get_alerts():
 @limiter.limit(config.RATE_LIMIT_CHAT)
 def chat():
     """
-    POST /chat - Interactive LLM chat for threat analysis discussion.
-    
-    Allows frontend/SOC analysts to ask follow-up questions about detected
-    threats using the same Groq LLM as the agent pipeline. This enables
-    interactive threat investigation without re-running the full detection.
-    
-    Security:
-    - Requires X-API-KEY header with valid INTERNAL_API_KEY
-    - Rate limited to 50 requests/minute (lower than /detect for cost control)
-    - LLM query timeouts at 30 seconds to prevent hanging
-    
-    Request Body (JSON):
-    {
-        "threat_type": "DDoS",
-        "question": "Why was this flow classified as DDoS?"
-    }
-    
-    Response (on success):
-    {
-        "response": "This flow was classified as DDoS because of high packet volume..."
-    }
-    
-    Returns:
-        JSON response with LLM analysis
-        HTTP 200: LLM response generated
-        HTTP 400: Invalid request format
-        HTTP 401: Missing or invalid API key
-        HTTP 503: LLM service unavailable
+    POST /chat - RAG-enabled forensic assistant (Groq LLM).
+
+    Retrieval: TF-IDF over data/knowledge/*.md plus live alerts from alert_repo.
+    Generation: Llama-3.3-70B with retrieved passages in the system prompt.
+    Stateless: one message per request (no server-side thread history).
+
+    Response: {"response", "timestamp", "rag_sources": [{source, score}, ...]}
     """
     if request.method == "OPTIONS":
         return jsonify({}), 200
@@ -476,12 +469,9 @@ def chat():
     try:
         import groq as groq_lib
 
-        recent = alert_repo.get_all()[:5]
-        rag_lines = "\n".join(
-            f"{i+1}. [{a['timestamp']}] {a.get('threat_type','?')} "
-            f"from {a.get('src_ip','?')} (Risk: {a.get('risk_score','?')}/10)"
-            for i, a in enumerate(recent)
-        ) or "None (system idle)."
+        alerts = alert_repo.get_all()
+        retrieved = rag_service.retrieve(req.message, alerts=alerts)
+        rag_context = rag_service.format_context(retrieved)
 
         system_prompt = f"""You are an expert cybersecurity analyst for an Agentic IDS.
 
@@ -489,13 +479,13 @@ CURRENT SYSTEM STATUS:
 - Detection Engine: Random Forest (SMOTE-Balanced) + SHAP explainability
 - Active Agent: LangGraph with Self-Correcting Conflict Resolution
 - Threat Intelligence: AbuseIPDB Live Integration
+- Knowledge: Retrieval-augmented (TF-IDF over MITRE/playbooks + live alerts)
 
-RECENT DETECTED THREATS (Last 5):
-{rag_lines}
+{rag_context}
 
-Your expertise includes network flow analysis, ML-based anomaly detection,
-SHAP explainability, MITRE ATT&CK mapping, and threat intelligence.
-Be technical but concise. Reference SHAP evidence when relevant."""
+Answer using the retrieved passages and alert records above. If the context
+does not contain enough detail, say so — do not invent SHAP values or alerts.
+Be technical but concise. Reference MITRE IDs and SHAP evidence when relevant."""
 
         client = groq_lib.Client(api_key=config.GROQ_API_KEY)
         resp = client.chat.completions.create(
@@ -509,7 +499,13 @@ Be technical but concise. Reference SHAP evidence when relevant."""
             timeout=15,
         )
         bot_response = resp.choices[0].message.content.strip()
-        return jsonify({"response": bot_response, "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")}), 200
+        return jsonify({
+            "response": bot_response,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "rag_sources": [
+                {"source": c.source, "score": c.score} for c in retrieved
+            ],
+        }), 200
 
     except Exception as exc:
         logger.error(f"[CHAT] Error: {exc}")

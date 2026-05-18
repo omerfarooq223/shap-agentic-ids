@@ -132,7 +132,7 @@ class DetectRequest(BaseModel):
 
 
 class ChatRequest(BaseModel):
-    """Wrapper for the /chat POST body."""
+    """Single-message body for POST /chat (RAG-backed, stateless)."""
     message: str = Field(..., min_length=1, max_length=2000)
 
 

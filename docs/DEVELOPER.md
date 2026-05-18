@@ -11,6 +11,15 @@ The agent logic is defined in `src/agent.py` and consists of 5 main sequential s
 4. `verify_step`: Calls AbuseIPDB to verify IP reputation and maps to MITRE tactics.
 5. `score_step`: Calculates the final Risk Score (0-10) and generates a recommendation.
 
+## Extending the RAG Knowledge Base
+
+Forensic chat retrieval lives in `src/services/rag_service.py`. Static playbooks are markdown files under `data/knowledge/` (chunked and indexed with TF-IDF). Live alerts from `AlertRepository` are indexed on each `/chat` request.
+
+To add domain knowledge:
+1. Add a `.md` file under `data/knowledge/` (use `##` headings for clean chunking).
+2. Restart Flask (or call any endpoint that runs `initialize_system`) so the index rebuilds.
+3. Tune `RAG_TOP_K` in `.env` if answers need more context.
+
 ## How to Add a New Agent Step
 
 Suppose you want to add a new step: **`query_virustotal_step`** to check domains associated with the IP.

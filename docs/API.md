@@ -45,12 +45,30 @@ This is the primary entry point for network traffic analysis. It takes a raw net
 ---
 
 ### 2. Forensic Chat (`POST /chat`)
-An interactive RAG-enabled endpoint that allows me to query the system about specific threats or general security patterns.
+RAG-enabled SOC assistant powered by **Llama-3.3-70B (Groq)**.
+
+**Retrieval:** TF-IDF cosine similarity over chunked markdown in `data/knowledge/` (MITRE mappings, threat playbooks, evaluation benchmarks, hybrid IDS comparison, project overview) plus serialized records from the live alert buffer (`AlertRepository`).
+
+**Generation:** Top-*k* passages (default 8, `RAG_TOP_K`) are injected into the system prompt; the model must ground answers in that context.
+
+Requests are **stateless** (single `message` per call; no server-side thread history).
 
 **Request Body:**
 ```json
 {
   "message": "Why was the last DDoS attack flagged as high risk?"
+}
+```
+
+**Response (on success):**
+```json
+{
+  "response": "...",
+  "timestamp": "2026-05-19 14:30:00",
+  "rag_sources": [
+    {"source": "threat_patterns.md", "score": 0.42},
+    {"source": "alert:1716123456789", "score": 0.31}
+  ]
 }
 ```
 

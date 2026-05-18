@@ -25,7 +25,13 @@ This is where the system "reasons" about the findings. I built this using **Lang
 *   **Hypothesize**: Uses **Llama-3.3-70B** to synthesize the ML math and external intel into a threat classification.
 *   **Self-Correction**: A conflict resolution node that restarts the reasoning if the LLM's guess contradicts the SHAP evidence.
 
-### 4. Adversarial Red Teaming (Self-Hardening)
+### 4. RAG-Enabled Forensic Chat
+The dashboard **AI Analyst** uses retrieval-augmented generation on `POST /chat`:
+*   **Retrieve:** TF-IDF search over `data/knowledge/` (MITRE mappings, threat patterns, evaluation benchmarks, hybrid IDS comparison, project overview, system pipeline) and live alert records.
+*   **Augment:** Top-ranked passages are injected into the Llama-3.3-70B system prompt.
+*   **Generate:** The model answers analyst questions grounded in retrieved context (not free-form hallucination).
+
+### 5. Adversarial Red Teaming (Self-Hardening)
 To ensure the system isn't easily bypassed, I implemented an autonomous Red Teaming framework:
 *   **Attacker Agent**: Generates adversarial flows to find "blind spots" in the IDS.
 *   **Critic Agent**: Analyzes why an attack succeeded or failed and provides feedback to the Attacker.

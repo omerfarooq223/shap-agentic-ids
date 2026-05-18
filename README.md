@@ -36,8 +36,10 @@ flowchart LR
 
     Reason <--> Intel[(AbuseIPDB / MITRE ATTACK)]
     Alert --> Dashboard[SOC Dashboard]
+    Dashboard --> Chat[RAG Forensic Chat]
     Alert --> Voice[Voice Assistant]
     Alert --> Lab[Snort / Suricata Lab]
+    Chat <--> KB[(data/knowledge/)]
     Critic[Critic Agent] -->|Feedback| RedTeam
     Alert --> Critic
 
@@ -66,7 +68,7 @@ For a more detailed, text-first breakdown of the architecture, see [docs/SYSTEM_
 *   **Live Threat Intelligence:** Automated IP reputation checks via **AbuseIPDB** and automated mapping to **MITRE ATT&CK** tactics and techniques.
 *   **Real Packet Capture & Streaming API:** Native Scapy-based sniffer (`packet_capture.py`) for live interface capture, coupled with a highly concurrent REST Streaming API (`streaming_api.py`) for continuous line-rate packet analysis.
 *   **Real Snort/Suricata Comparison:** Integrated side-by-side behavioral forensic lab (`snort_comparison.py`) to benchmark the LLM Agent against traditional signature-based rules (addresses Tier S requirement).
-*   **Real-time SOC Dashboard:** A premium React-based interface featuring a 3D threat globe, live forensic chat, and high-density telemetry.
+*   **Real-time SOC Dashboard:** A premium React-based interface featuring a 3D threat globe, RAG-powered forensic chat, and high-density telemetry.
 *   **Voice-Driven Security Assistant:** Integrated audible alert system using both backend (macOS `say`) and frontend (Web Speech API) synthesis to provide hands-free threat reporting for SOC analysts.
 *   **Empirical Cross-Dataset Validation:** System performance is rigorously tested across heterogeneous datasets (CICIDS2017 & UNSW-NB15) to ensure model generalization and robustness against novel attack patterns.
 
@@ -174,10 +176,12 @@ IS Project/
 │       ├── geo_service.py  # Map IPs to Geolocation via APIs
 │       ├── inference.py    # SHAP TreeExplainer & RF ML Prediction Engine
 │       ├── persistence.py  # JSON Alert Logging & Data Persistence
-│       └── voice_service.py # Audible Security Alert System (New)
+│       ├── rag_service.py  # TF-IDF RAG retrieval for forensic chat
+│       ├── red_team_service.py # Red team battle orchestration
+│       └── voice_service.py # Audible Security Alert System
 ├── frontend/               # React + Vite SOC Dashboard Website
 │   ├── src/                # Frontend Application Code
-│   │   ├── components/     # Reusable React UI Components
+│   │   ├── components/     # Reusable React UI (Dashboard, ChatWidget w/ RAG sources, …)
 │   │   ├── utils/          # API Communication Handlers
 │   │   ├── ThreatGlobe.jsx # 3D Three.js Live Attack Geolocation Map
 │   │   ├── Analytics.jsx   # Reporting, Visualizations & Metrics Dashboard
@@ -190,7 +194,9 @@ IS Project/
 │   ├── test_flask_api.py   # System API Endpoint Checks
 │   ├── test_agent_steps.py # Tests for LangGraph Node Functionalities
 │   └── test_integration_e2e.py # End-to-End full system logic tests
+│   └── test_rag_service.py     # TF-IDF knowledge retrieval unit tests
 ├── data/                   # Datasets (CICIDS2017 & UNSW-NB15)
+│   └── knowledge/          # RAG markdown playbooks (MITRE, benchmarks, threat patterns)
 ├── models/                 # Serialized Pickle Models (`rf_model.pkl`, `scaler.pkl`)
 ├── docs/                   # Full Technical Reporting & Academic Documentation
 │   ├── API.md              # REST API Interface Spec Details

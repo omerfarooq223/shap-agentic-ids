@@ -78,7 +78,14 @@ const App = () => {
       });
       const data = await res.json();
       if (isValidAPIResponse(data)) {
-        setChatMessages(p => [...p, { role: 'assistant', content: data.response || 'No response.' }]);
+        const sources = Array.isArray(data.rag_sources)
+          ? data.rag_sources.filter(s => s && typeof s.source === 'string')
+          : [];
+        setChatMessages(p => [...p, {
+          role: 'assistant',
+          content: data.response || 'No response.',
+          ragSources: sources,
+        }]);
       } else {
         setChatMessages(p => [...p, { role: 'assistant', content: 'Received an invalid response from the backend.' }]);
       }

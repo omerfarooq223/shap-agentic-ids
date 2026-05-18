@@ -11,11 +11,16 @@ load_dotenv()
 # Project Roots
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data"
+KNOWLEDGE_DIR = DATA_DIR / "knowledge"
 MODEL_DIR = BASE_DIR / "models"
 LOGS_DIR = BASE_DIR / "logs"
 
+# RAG (forensic chat retrieval)
+RAG_TOP_K = int(os.getenv("RAG_TOP_K", "8"))
+
 # Ensure directories exist
 os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(KNOWLEDGE_DIR, exist_ok=True)
 os.makedirs(MODEL_DIR, exist_ok=True)
 os.makedirs(LOGS_DIR, exist_ok=True)
 DOCS_DIR = BASE_DIR / "docs"

@@ -26,7 +26,8 @@ A three-layer system combining detection, explainability, and agentic reasoning:
 - **Autonomous Routing:** Uses LangGraph to intelligently route threats based on evidence confidence.
 - **Domain-Aware Observation:** Recognizes sensitive protocols (SSH, RDP, SMB) and prioritizes high-risk ports.
 - **Zero-Day Conflict Detection:** Flags anomalies where ML confidence is high but external reputation is clean, identifying potential novel threats.
-- **RAG-Enabled Analysis:** Synthesizes SHAP mathematical evidence with LLM-based reasoning and real-time AbuseIPDB intelligence.
+- **RAG-Enabled Forensic Chat:** TF-IDF retrieval over `data/knowledge/` and live alerts, then LLM synthesis for analyst Q&A (`POST /chat`).
+- **Evidence-Grounded Agent Analysis:** LangGraph pipeline synthesizes SHAP mathematical evidence with LLM reasoning and real-time AbuseIPDB intelligence.
 - **Voice-Driven Security Assistant:** Provides real-time audible telemetry for critical alerts, ensuring analysts are notified of high-risk events even when not actively monitoring the dashboard.
 
 **Innovation:** This system moves beyond static detection by implementing **Cross-Signal Verification**. We combine SHAP (verified local explanation) with a non-linear Agent loop that can resolve conflicts between internal ML models and external intelligence. Additionally, v2.5 introduces an **Autonomous Red Teaming** framework that implements adversarial self-correction, alongside an in-line **Evasion Guard** that dynamically escalates stealthy borderline attacks to Agent reasoning even when the base ML model flags them as "benign".

@@ -1,4 +1,11 @@
-import { Cpu, ChevronDown, Zap, X, Send, MessageSquare } from 'lucide-react';
+import { Cpu, ChevronDown, Zap, X, Send, MessageSquare, BookOpen } from 'lucide-react';
+
+const formatRagSource = (source) => {
+  if (source.startsWith('alert:')) {
+    return `Live alert ${source.slice(6)}`;
+  }
+  return source.replace(/_/g, ' ').replace(/\.md$/i, '');
+};
 
 const ChatWidget = ({
   chatOpen,
@@ -19,7 +26,7 @@ const ChatWidget = ({
           <div className="chat-overlay-title">
             <Cpu size={16} />
             <span>IDS AI Analyst</span>
-            <span className="chat-model-badge">LLaMA-3.3-70B</span>
+            <span className="chat-model-badge">RAG · LLaMA-3.3</span>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="chat-close-btn" title={chatFullscreen ? 'Minimize' : 'Expand'} onClick={() => setChatFullscreen(f => !f)}>
@@ -32,7 +39,27 @@ const ChatWidget = ({
           {chatMessages.map((msg, i) => (
             <div key={i} className={`chat-msg ${msg.role}`}>
               {msg.role === 'assistant' && <div className="chat-avatar-bot"><Cpu size={13} /></div>}
-              <div className="chat-bubble">{msg.content}</div>
+              <div className="chat-bubble-wrap">
+                <div className="chat-bubble">{msg.content}</div>
+                {msg.role === 'assistant' && msg.ragSources?.length > 0 && (
+                  <div className="chat-rag-sources" aria-label="Retrieved sources">
+                    <div className="chat-rag-label">
+                      <BookOpen size={11} />
+                      <span>Retrieved ({msg.ragSources.length})</span>
+                    </div>
+                    <div className="chat-rag-chips">
+                      {msg.ragSources.map((s, j) => (
+                        <span key={j} className="chat-rag-chip" title={`Relevance ${s.score}`}>
+                          {formatRagSource(s.source)}
+                          <span className="chat-rag-score">
+                            {typeof s.score === 'number' ? `${(s.score * 100).toFixed(0)}%` : '—'}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           ))}
           {chatLoading && (

@@ -87,7 +87,7 @@ export const DEMO_ALERTS = [
 
 export const INITIAL_CHAT_MESSAGE = {
   role: 'assistant',
-  content: "I'm your IDS AI Analyst powered by LLaMA-3.3-70B. Ask me about detected threats, attack patterns, MITRE tactics, or how the system works."
+  content: "I'm your IDS AI Analyst (LLaMA-3.3-70B with RAG). I retrieve MITRE playbooks, threat patterns, and live alerts before answering. Ask about recent threats, attack types, or how the system works."
 };
 
 export const API_CONFIG = {

@@ -41,6 +41,9 @@ ABUSEIPDB_API_KEY=your_key_here
 # Optional: Toggle backend (system-level) voice assistant (true/false)
 # If testing locally with the browser open, set to false to avoid echo
 ENABLE_BACKEND_VOICE=false
+
+# Optional: Forensic chat RAG — number of retrieved passages (default 8)
+RAG_TOP_K=8
 ```
 
 **Without these keys:**
@@ -143,7 +146,7 @@ The React-based Security Operations Center (SOC) dashboard includes:
 - ⚡ **Stress Test Simulator**: Trigger high-volume attack bursts to test system stability.
 - 🔬 **Forensic Lab**: Live performance comparison (ML-IDS vs Snort vs Suricata).
 - 🤖 **Agent Reasoning Logs**: Transparent view of the AI decision-making process.
-- 💬 **Forensic Chat**: RAG-powered interface to query the system about specific threats.
+- 💬 **Forensic Chat**: RAG-powered analyst (TF-IDF retrieval over `data/knowledge/` + live alerts, then Llama-3.3-70B).
 - 🔊 **Voice Security Assistant**: Real-time audible threat alerts supporting customizable assistant personas (**Jarvis**, **Friday**, **Classic**) with dynamic pause calibrations and frontend/backend mute synchronization.
 
 ---

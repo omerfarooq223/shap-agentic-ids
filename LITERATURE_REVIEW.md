@@ -96,7 +96,7 @@ In adversarial cybersecurity, attackers continuously evolve to bypass detection.
 
 Perez & Ribeiro (2022) in *"Ignore Previous Instructions: On the Robustness of LLMs to Adversarial Prompt Injection"* highlighted how LLMs can be tricked. Our project extends this concept by creating a **Critic Agent** that teaches an **Attacker Agent** to bypass the IDS, forcing the **Defender** (our project) to harden its logic against "low-confidence" stealthy patterns. This creates an autonomous feedback loop for defensive improvement.
 
-Liu et al. (2025) further refined this in *"Retrieval-Augmented Generation for Cyber Threat Intelligence"*, showing that grounding the agent in a **RAG-based Threat Knowledge Base** allows the system to stay updated with the latest zero-day signatures without requiring frequent model retraining.
+Liu et al. (2025) further refined this in *"Retrieval-Augmented Generation for Cyber Threat Intelligence"*, showing that grounding an agent in a **RAG-based threat knowledge base** can keep CTI narratives current without frequent model retraining. **Our implementation applies lightweight TF-IDF RAG** on the forensic chat endpoint (`POST /chat`), retrieving from curated markdown playbooks under `data/knowledge/` plus live alert records. The LangGraph detection agent remains grounded on SHAP outputs and AbuseIPDB rather than vector retrieval.
 
 ---
 
