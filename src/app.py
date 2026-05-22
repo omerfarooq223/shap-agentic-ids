@@ -85,6 +85,8 @@ else:
 # Module-level agent handle (initialised in initialize_system)
 # ---------------------------------------------------------------------------
 _agent = None
+_init_lock = threading.Lock()
+_init_attempted = False
 
 
 def initialize_system() -> bool:
@@ -116,6 +118,24 @@ def initialize_system() -> bool:
         return False
 
 
+def ensure_system_initialized() -> bool:
+    """Load the ML model and agent lazily if the backend was started without run_flask.py."""
+    global _init_attempted
+
+    if inference_service.is_ready and _agent is not None:
+        return True
+
+    with _init_lock:
+        if inference_service.is_ready and _agent is not None:
+            return True
+
+        if _init_attempted:
+            return False
+
+        _init_attempted = True
+        return initialize_system()
+
+
 # ---------------------------------------------------------------------------
 # Before-request hook
 # ---------------------------------------------------------------------------
@@ -143,7 +163,7 @@ def root():
 @app.route("/health", methods=["GET"])
 @limiter.limit(config.RATE_LIMIT_HEALTH)
 def health():
-    ready = inference_service.is_ready and _agent is not None
+    ready = ensure_system_initialized()
     return jsonify(
         {
             "status": "healthy" if ready else "unhealthy",
@@ -156,6 +176,7 @@ def health():
 @app.route("/status", methods=["GET"])
 @limiter.limit(config.RATE_LIMIT_HEALTH)
 def status():
+    ensure_system_initialized()
     return jsonify(
         {
             "status": "running",
@@ -233,7 +254,7 @@ def detect():
         logger.warning(f"Unauthorized /detect request (invalid API key) from {request.remote_addr}")
         return jsonify({"error": "Unauthorized: invalid API key"}), 401
 
-    if not inference_service.is_ready or not _agent:
+    if not ensure_system_initialized():
         return jsonify({"error": "System not initialized. Run 'python src/train.py' first."}), 503
 
     # ── 1. Schema validation (replaces hand-rolled dict checks) ──────────
@@ -746,6 +767,9 @@ def internal_error(exc):
 def _detection_callback(flow: dict) -> dict:
     """Used by the streaming pipeline for live packet capture."""
     try:
+        if not ensure_system_initialized():
+            return {"anomaly": False, "error": "System not initialized. Run 'python src/train.py' first."}
+
         ml_score = inference_service.predict_proba(flow)
         if ml_score < 0.5:
             return {"anomaly": False, "ml_score": ml_score}

@@ -45,6 +45,7 @@ class AlertRepository:
 
     def get_all(self) -> list[dict[str, Any]]:
         """Return a shallow copy of the current alert buffer."""
+        self.load()
         with self._lock:
             return list(self._alerts)
 
