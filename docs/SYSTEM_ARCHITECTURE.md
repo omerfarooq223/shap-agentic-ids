@@ -10,8 +10,8 @@ The system is organized into four core functional blocks:
 
 ### 1. The Ingestion Engine (Live Capture & Streaming)
 I use **Scapy** for real-time packet sniffing on specified network interfaces.
-*   **Flow Extraction**: Packets are grouped into 5-tuples (Src IP, Dst IP, Src Port, Dst Port, Protocol) and processed into 78 statistical features.
-*   **Streaming API**: A thread-safe queue-based pipeline that feeds processed flows into the detection engine without blocking the capture process.
+*   **Flow Extraction**: Packets are grouped into 5-tuples (Src IP, Dst IP, Src Port, Dst Port, Protocol) and processed into 78 statistical features (reduced to 12).
+*   **Streaming API**: A thread-safe queue-based pipeline that feeds processed flows into the detection engine without blocking the capture process. Features a **dynamic queue-depth load shedding** mechanism (bypassing expensive LLM calls if queue exceeds 2000 items) to prevent total system collapse under heavy DDOS.
 
 ### 2. The Detection & Explanation Core
 This is the "brain" of the system where raw data becomes security intelligence.
@@ -64,9 +64,10 @@ flowchart LR
 
 ---
 
-## 📈 Performance Characteristics
+## 📈 Performance Characteristics & Boundaries
 
 My goal was to balance deep reasoning with operational speed:
 *   **ML Latency**: ~50ms (Ideal for high-throughput filtering)
-*   **Agent Latency**: ~1.2s (Acceptable for forensic deep-dives)
+*   **Agent Latency**: ~1.2s (Acceptable for forensic deep-dives, bypassed via Graceful Degradation under severe load)
 *   **Resource Usage**: Optimized to run on consumer hardware (M2 Air) by leveraging external API inference.
+*   **Out-of-Scope Payloads**: 12-feature flow statistics cannot read packet data contents. Deeply embedded payloads (RCE, SQLi, malware text) are purposefully ignored in v1 format, relying strictly on heuristic flow geometry for detection. Future enhancements will involve multimodal DPI payload injection into the LLM.

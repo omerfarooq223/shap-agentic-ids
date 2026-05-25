@@ -767,12 +767,34 @@ def internal_error(exc):
 def _detection_callback(flow: dict) -> dict:
     """Used by the streaming pipeline for live packet capture."""
     try:
+        from src.streaming_api import streaming_state
+
         if not ensure_system_initialized():
             return {"anomaly": False, "error": "System not initialized. Run 'python src/train.py' first."}
 
         ml_score = inference_service.predict_proba(flow)
+        
+        # --- Graceful Degradation / Load Shedding ---
+        processor = streaming_state.get('processor')
+        # If the queue backs up significantly, bypass Layer 2 and Layer 3
+        if processor and processor.packet_queue.qsize() > 2000:
+            if ml_score < 0.5:
+                return {"anomaly": False, "ml_score": ml_score}
+            
+            # Auto-Degrade: Rely exclusively on RF (Layer 1) for line-rate blocking
+            logger.warning(f"SYSTEM UNDER LOAD. Bypassing Agent. Queue Depth: {processor.packet_queue.qsize()}")
+            return {
+                "anomaly": True,
+                "ml_score": ml_score,
+                "threat_type": "Auto-Degraded (Layer 1 Only)",
+                "risk_score": min(10.0, 5.0 + (ml_score * 5)),
+                "recommendation": "SYSTEM UNDER LOAD. Bypassed AI agent to maintain throughput. Review manually.",
+            }
+        # --------------------------------------------
+
         if ml_score < 0.5:
             return {"anomaly": False, "ml_score": ml_score}
+            
         shap_exp = inference_service.explain(flow)
         state = _agent.analyze(flow, ml_score, shap_exp)
         return {

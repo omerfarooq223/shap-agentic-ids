@@ -21,6 +21,7 @@ I implemented a four-stage analysis pipeline that ensures high fidelity:
 2.  **Explanation (SHAP)**: To provide transparency, I integrated SHAP (Shapley Additive exPlanations), which maps raw network features directly to their contribution towards an alert.
 3.  **Contextualization (LangGraph Agent)**: I designed a non-linear reasoning loop using LangGraph. This agent handles "Verify" and "Observe" steps, consulting **AbuseIPDB** and **MITRE ATT&CK** to provide a human-readable forensic report.
 4.  **Autonomous Hardening (Red Teaming)**: I added a multi-agent adversarial framework where an **Attacker Agent** attempts to bypass my IDS, and a **Critic Agent** provides feedback to refine the defense logic.
+5.  **Graceful Degradation (Load Shedding)**: Under intense packet flooding (e.g. queue > 2000), the system dynamically bypasses expensive LLM agent calls and relies purely on Layer 1 fast-paths, preventing system crash and maintaining throughput.
 
 ### 2.2 Voice-Driven Telemetry
 To improve SOC analyst efficiency, I integrated a **Voice Security Assistant**. This system provides real-time audible alerts for high-risk threats, allowing for hands-free monitoring of the network state.
@@ -49,5 +50,9 @@ In my side-by-side benchmarking against a signature-based approach (Snort-style 
 
 ---
 
-## 5. Final Conclusion
+## 5. Security & Limitations
+* **Explanation Manipulation Resilience:** Cross-Signal Verification intrinsically checks SHAP data against external network logic, defending against adversarial explainability bypasses.
+* **Out-of-Scope Attacks:** Deeply embedded payload exploits (e.g., zero-day RCEs, SQLi) cannot be detected by out-of-the-box 12-feature flow statistics algorithms. Future development will couple Deep Packet Inspection (DPI) with Multimodal LLMs directly to scan internal payload text.
+
+## 6. Final Conclusion
 This project successfully demonstrates that **Agentic Reasoning** is the future of network security. By combining the speed of Machine Learning with the contextual depth of Large Language Models, I have created a system that doesn't just flag packets—it understands threats. The addition of autonomous red teaming ensures the system stays resilient against evolving adversarial tactics.

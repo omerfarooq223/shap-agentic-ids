@@ -747,17 +747,21 @@ The system is designed as a high-fidelity investigative tool for security analys
     *   **Data Ingestion (Scapy):** Optimized for targeted telemetry. Max ingestion: ~500 PPS.
     *   **Inference Latency (Agent):** Total flow analysis takes ~450ms. Max throughput: **~1.5 flows/sec**.
     *   **Deployment:** Best suited for protecting high-value subnetworks or DMZs.
+    *   **Graceful Degradation (Load Shedding):** Implements dynamic flow-queue depth threshold protection (bypassing Layer 2 and Layer 3 models to rely on RF for fast line-rate blocking) during massive DDOS floods over ~2000 queue depth.
 
 2.  **External API Dependencies:**
     *   **GROQ:** Subject to token rate limits (Llama-3.3-70b-versatile).
     *   **AbuseIPDB:** Subject to daily check quotas.
     *   **Reliability:** Implements **Graceful Degradation**. If APIs fail, the system falls back to local Random Forest + SHAP logic. IP reputation is flagged as "Unknown" without blocking local detection.
 
-3.  **Inference Integrity (Hallucination Control):**
-    *   LLM classifications are validated against the top 3 SHAP features via the **Cross-Signal Verification** node. Contradictions are flagged for manual review.
+3.  **Inference Integrity (Hallucination Control & Explanation Manipulation):**
+    *   LLM classifications are validated against the top 3 SHAP features via the **Cross-Signal Verification** node. Contradictions are flagged for manual review or re-analysis. This inherently adds **Defense Against Explanation Manipulation** (adversarial explainability).
 
 4.  **Cross-Dataset Feature Translation:**
     *   Generalization testing on UNSW-NB15 utilizes a mapping layer to ensure feature parity with the CICIDS2017-trained model.
+
+5.  **Out-of-Scope Attacks:**
+    *   Because our pipeline relies strictly on flow-level statistics via our 12-feature schema, deeply embedded payload-level exploits are out-of-scope (e.g., zero-day remote code executions, encrypted application-layer malware, highly obfuscated SQL injections). **Future Work:** Deep Packet Inspection (DPI) coupled with multimodal LLM capabilities directly injecting text-based payloads.
 
 5.  **Model Drift & Evolution:**
     *   Architecture supports **Agentic Active Learning**. The agent logs threat-intel verified alerts to a feedback loop, allowing the model to adapt to 2026 threats via incremental `warm_start=True` retraining.

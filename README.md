@@ -213,8 +213,15 @@ IS Project/
 ## 🛡️ Security & Hardening
 - **API Security:** All endpoints are protected by a 256-bit `INTERNAL_API_KEY`.
 - **Rate Limiting:** Enforced via `Flask-Limiter` to prevent DoS attacks on the LLM reasoning engine.
+- **Graceful Degradation:** Adaptive dynamic queue-depth load shedding (e.g. `>2000` dropped to Layer 1 fast-path) safely maintains throughput and acts as an anti-flood safeguard when the system is under intense volumetric DDoS attacks. 
+- **Defense Against Explanation Manipulation:** Cross-Signal Verification (CSV) cross-checks SHAP values against external immutable networking logics, offering an inherent mechanism to counter adversarial machine learning explainability exploits.
 - **Input Validation:** Strict Pydantic schemas enforce type-safety and feature range validation.
 - **CORS Protection:** Origin-locked configuration to prevent unauthorized cross-site requests.
+
+---
+
+## 🛑 Limitations & Future Work
+- **Out-of-Scope Attacks (No Deep Packet Inspection):** As the pipeline strictly uses 12-feature flow statistics, deeply embedded payload-level exploits (e.g., zero-day remote code executions, encrypted application-layer malware, SQLi payloads) are out-of-scope. **Future Integration:** Deep Packet Inspection (DPI) coupled with multimodal LLM capabilities will analyze text-based payload payloads directly to catch obfuscated application-layer attacks.
 
 ---
 
