@@ -1,6 +1,42 @@
 import { Zap, RefreshCw } from 'lucide-react';
 import { API_CONFIG } from '../constants';
 
+const ALLOWED_FLOW_KEYS = new Set([
+  'src_ip',
+  'dst_ip',
+  'dst_port',
+  'protocol',
+  'timestamp',
+  'Destination Port',
+  'Flow Duration',
+  'Total Fwd Packets',
+  'Total Backward Packets',
+  'Total Length of Fwd Packets',
+  'Total Length of Bwd Packets',
+  'Fwd Packet Length Mean',
+  'Bwd Packet Length Mean',
+  'Flow Bytes/s',
+  'Flow Packets/s',
+  'Fwd Packets/s',
+  'Bwd Packets/s'
+]);
+
+const normalizeFlowPayload = (flow) => {
+  const normalized = {};
+
+  for (const key of ALLOWED_FLOW_KEYS) {
+    if (flow && Object.prototype.hasOwnProperty.call(flow, key)) {
+      normalized[key] = flow[key];
+    }
+  }
+
+  if (normalized['Destination Port'] == null && normalized.dst_port != null) {
+    normalized['Destination Port'] = normalized.dst_port;
+  }
+
+  return normalized;
+};
+
 const SimulatorModal = ({
   simOpen,
   setSimOpen,
@@ -44,7 +80,7 @@ const SimulatorModal = ({
           <div className="sim-flow-preview">
             <textarea
               className="sim-custom-input"
-              defaultValue={JSON.stringify(ATTACK_PRESETS[0].flow, null, 2)}
+              defaultValue={JSON.stringify(normalizeFlowPayload(ATTACK_PRESETS[0].flow), null, 2)}
               id="custom-flow-input"
               style={{ width: '100%', height: '150px', background: '#000', color: '#10b981', border: 'none', outline: 'none', fontFamily: 'monospace', resize: 'vertical' }}
             />
@@ -64,6 +100,8 @@ const SimulatorModal = ({
             ? JSON.parse(document.getElementById('custom-flow-input').value)
             : ATTACK_PRESETS[simPreset].flow;
 
+          flowData = normalizeFlowPayload(flowData);
+
           try {
             const res = await fetch(`${API_CONFIG.BASE_URL}/detect`, {
               method: 'POST',
@@ -71,8 +109,15 @@ const SimulatorModal = ({
               body: JSON.stringify({ flow: flowData })
             });
             const data = await res.json();
-            setSimResult(data);
-            if (data.anomaly) setAlerts(p => [data, ...p].slice(0, 50));
+            if (!res.ok) {
+              setSimResult({
+                error: data.error || `Request failed with status ${res.status}`,
+                details: data.details
+              });
+            } else {
+              setSimResult(data);
+              if (data.anomaly) setAlerts(p => [data, ...p].slice(0, 50));
+            }
           } catch {
             setSimResult({ error: 'Backend offline.' });
           }
