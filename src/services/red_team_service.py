@@ -51,9 +51,29 @@ class RedTeamService:
             # 3. Defense
             defense_result = self.defender.analyze(payload, ml_conf, shap_data)
             round_data["defender_result"] = defense_result
+            risk = float(defense_result.get("risk_score", 0.0))
+            caught_by_ids = ml_conf >= 0.5 or risk > config.RISK_SCORE_WARNING_THRESHOLD
+            if ml_conf >= 0.5:
+                detection_basis = "ML threshold"
+            elif risk > config.RISK_SCORE_WARNING_THRESHOLD:
+                detection_basis = "Agent risk threshold"
+            else:
+                detection_basis = "Bypassed ML and agent thresholds"
+
+            round_data["ml_confidence"] = float(ml_conf)
+            round_data["caught_by_ids"] = caught_by_ids
+            round_data["detection_basis"] = detection_basis
             
             # 4. Critique
-            feedback = self.critic.analyze_defense(payload, defense_result)
+            feedback = self.critic.analyze_defense(
+                payload,
+                {
+                    **defense_result,
+                    "ml_confidence": float(ml_conf),
+                    "caught_by_ids": caught_by_ids,
+                    "detection_basis": detection_basis,
+                },
+            )
             current_feedback = feedback
             round_data["critic_feedback"] = feedback
             
@@ -63,7 +83,6 @@ class RedTeamService:
                 from src.services.geo_service import get_geo_location
                 from src.services.voice_service import voice_assistant
                 
-                risk = defense_result.get("risk_score", 0.0)
                 status_label = "CRITICAL" if risk > 8.0 else "WARNING" if risk > 5.0 else "INFO"
                 
                 agent_logs = [
@@ -91,7 +110,7 @@ class RedTeamService:
                     "src_ip": payload.get("src_ip", "1.1.1.1"),
                     "dst_ip": payload.get("dst_ip", "10.0.0.1"),
                     "dst_port": int(payload.get("dst_port", 80)),
-                    "anomaly": True,
+                    "anomaly": caught_by_ids,
                     "ml_confidence": float(ml_conf),
                     "shap_explanation": shap_list,
                     "threat_type": defense_result.get("hypothesized_threat", "Unknown"),
@@ -105,6 +124,8 @@ class RedTeamService:
                     "recommendation": defense_result.get("recommendation", "N/A"),
                     "agent_reasoning": agent_logs,
                     "geo_location": geo,
+                    "source": "red_team",
+                    "detection_basis": detection_basis,
                     "_backend": {
                         "agent_latency_ms": 150.0,
                         "agent_error": ""

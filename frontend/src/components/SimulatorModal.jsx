@@ -116,8 +116,15 @@ const SimulatorModal = ({
                 details: data.details
               });
             } else {
-              setSimResult(data);
-              if (data.anomaly) setAlerts(p => [data, ...p].slice(0, 50));
+              const simulatedResult = {
+                ...data,
+                source: 'simulator',
+                status: data.status || (data.anomaly ? 'WARNING' : 'INFO'),
+                threat_type: data.anomaly ? data.threat_type : 'benign',
+                recommendation: data.recommendation || (data.anomaly ? 'Review simulated threat.' : 'No action required.'),
+              };
+              setSimResult(simulatedResult);
+              setAlerts(p => [simulatedResult, ...p].slice(0, 50));
             }
           } catch {
             setSimResult({ error: 'Backend offline.' });

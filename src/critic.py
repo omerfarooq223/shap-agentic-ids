@@ -34,13 +34,21 @@ class CriticAgent:
         logger.info("[Critic] Analyzing defense performance...")
         
         risk_score = defender_output.get("risk_score", 0.0)
-        is_caught = risk_score > config.RISK_SCORE_WARNING_THRESHOLD
+        is_caught = bool(
+            defender_output.get(
+                "caught_by_ids",
+                risk_score > config.RISK_SCORE_WARNING_THRESHOLD,
+            )
+        )
         
         # Prepare context for the Critic LLM
         context = {
             "attacker_payload": {k: v for k, v in attacker_payload.items() if k in ["dst_port", "protocol", "src_ip"]},
             "defender_classification": defender_output.get("mitre", "Unknown"),
             "defender_risk_score": risk_score,
+            "ml_confidence": defender_output.get("ml_confidence", 0.0),
+            "caught_by_ids": is_caught,
+            "detection_basis": defender_output.get("detection_basis", "risk_score"),
             "defender_reasoning": defender_output.get("llm_reasoning", ""),
             "shap_features": defender_output.get("shap_explanation", [])[:3] # Top 3 features that caught the attack
         }
@@ -50,8 +58,8 @@ class CriticAgent:
             "Your job is to look at the Defender's reaction to an attack and tell the Attacker "
             "how they can improve their next attempt to bypass the defense.\n\n"
             "Rules:\n"
-            "1. If the risk_score is high (>5), the attack was caught. Tell the Attacker which features (SHAP) gave them away.\n"
-            "2. If the risk_score is low (<5), the attack was successful. Tell the Attacker what they did right.\n"
+            "1. If caught_by_ids is true, the attack was caught. Tell the Attacker which ML/SHAP/agent signals gave them away.\n"
+            "2. If caught_by_ids is false, the attack was successful. Tell the Attacker what they did right.\n"
             "3. Be technical and specific (e.g., 'Lower your Flow Bytes/s to appear more like normal traffic').\n"
             "4. Keep feedback concise and actionable."
         )

@@ -55,6 +55,11 @@ const requestSessionStatus = async () => {
   return Boolean(data.authenticated);
 };
 
+const isBenignDetection = (alert) => (
+  alert?.anomaly === false ||
+  String(alert?.threat_type || '').toLowerCase() === 'benign'
+);
+
 const App = () => {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [alerts, setAlerts] = useState(DEMO_ALERTS);
@@ -67,6 +72,7 @@ const App = () => {
   const [accessKey, setAccessKey] = useState('');
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  const [showBenignDetections, setShowBenignDetections] = useState(false);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
   const [voicePersona, setVoicePersona] = useState(readStoredVoicePersona);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -418,11 +424,15 @@ const App = () => {
     URL.revokeObjectURL(url);
   };
 
-  const filteredAlerts = alerts.filter(a =>
-    a.src_ip.includes(searchQuery) ||
-    a.threat_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    a.status.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const benignDetectionCount = alerts.filter(isBenignDetection).length;
+  const filteredAlerts = alerts.filter(a => {
+    const matchesSearch = (
+      a.src_ip.includes(searchQuery) ||
+      a.threat_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.status.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    return matchesSearch && (showBenignDetections || !isBenignDetection(a));
+  });
 
   const renderContent = () => {
     switch (activeTab) {
@@ -434,6 +444,9 @@ const App = () => {
             selectedAlert={selectedAlert}
             setSelectedAlert={setSelectedAlert}
             setAlerts={setAlerts}
+            showBenignDetections={showBenignDetections}
+            setShowBenignDetections={setShowBenignDetections}
+            benignDetectionCount={benignDetectionCount}
           />
         );
 

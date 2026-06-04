@@ -1,9 +1,19 @@
 import { useState } from 'react';
-import { Activity, AlertCircle, Lock, Cpu, Zap, Shield, ChevronRight, Loader2, CheckCircle2 } from 'lucide-react';
+import { Activity, AlertCircle, Lock, Cpu, Zap, Shield, ChevronRight, Loader2, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
-const DashboardTab = ({ alerts, filteredAlerts, selectedAlert, setSelectedAlert, setAlerts }) => {
+const DashboardTab = ({
+  alerts,
+  filteredAlerts,
+  selectedAlert,
+  setSelectedAlert,
+  setAlerts,
+  showBenignDetections,
+  setShowBenignDetections,
+  benignDetectionCount = 0
+}) => {
   const [actionState, setActionState] = useState({ alertId: null, status: 'idle' });
   const actionStatus = actionState.alertId === selectedAlert?.id ? actionState.status : 'idle';
+  const selectedIsBenign = selectedAlert?.anomaly === false || selectedAlert?.threat_type === 'benign';
   const setCurrentActionStatus = (status) => {
     setActionState({ alertId: selectedAlert?.id ?? null, status });
   };
@@ -79,7 +89,19 @@ const DashboardTab = ({ alerts, filteredAlerts, selectedAlert, setSelectedAlert,
         <section className="alert-feed-section">
           <div className="section-header">
             <h3><AlertCircle size={18} /> ACTIVE THREAT FEED</h3>
-            <span className="alert-count">{filteredAlerts.length} alerts</span>
+            <div className="section-actions">
+              <button
+                type="button"
+                className={`benign-toggle-btn ${showBenignDetections ? 'active' : ''}`}
+                onClick={() => setShowBenignDetections(prev => !prev)}
+                title={showBenignDetections ? 'Hide benign simulator results' : 'Show benign simulator results'}
+              >
+                {showBenignDetections ? <EyeOff size={13} /> : <Eye size={13} />}
+                <span>{showBenignDetections ? 'Hide Benign' : 'Show Benign'}</span>
+                <span className="benign-count">{benignDetectionCount}</span>
+              </button>
+              <span className="alert-count">{filteredAlerts.length} alerts</span>
+            </div>
           </div>
           <div className="alerts-list">
             {filteredAlerts.map(alert => (
@@ -94,7 +116,12 @@ const DashboardTab = ({ alerts, filteredAlerts, selectedAlert, setSelectedAlert,
                 <div className="alert-content">
                   <div className="alert-title">
                     <span className="threat-type" style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap' }}>
-                      {alert.threat_type}
+	                      {alert.threat_type}
+                      {alert.anomaly === false && (
+                        <span className="benign-badge" title="Benign simulator result">
+                          Benign
+                        </span>
+                      )}
                       {alert.ml_confidence < 0.50 && alert.risk_score > 0 && (
                         <span className="evasion-badge" title="Borderline flow escalated by Evasion Guard">
                           🛡️ Evasion Escalation
@@ -143,8 +170,12 @@ const DashboardTab = ({ alerts, filteredAlerts, selectedAlert, setSelectedAlert,
                   <div className="val">{selectedAlert.mitre || 'T1046 (Scanning)'}</div>
                 </div>
                 <div className="info-card">
-                  <label>Risk Score</label>
-                  <div className="val">{selectedAlert.risk_score}/10</div>
+	                  <label>Risk Score</label>
+	                  <div className="val">{selectedAlert.risk_score}/10</div>
+	                </div>
+                <div className="info-card">
+                  <label>ML Score</label>
+                  <div className="val">{(((selectedAlert.ml_confidence || 0) * 100)).toFixed(1)}%</div>
                 </div>
                 <div className="info-card">
                   <label>AbuseIPDB Score</label>
@@ -157,10 +188,10 @@ const DashboardTab = ({ alerts, filteredAlerts, selectedAlert, setSelectedAlert,
               </div>
 
               <div className="shap-panel">
-                <h4><Cpu size={16} /> FEATURE IMPORTANCE</h4>
-                <div className="shap-list">
-                  {selectedAlert?.shap_explanation?.map((item, idx) => (
-                    <div key={idx} className="shap-item">
+	                <h4><Cpu size={16} /> FEATURE IMPORTANCE</h4>
+	                <div className="shap-list">
+                  {selectedAlert?.shap_explanation?.length ? selectedAlert.shap_explanation.map((item, idx) => (
+	                    <div key={idx} className="shap-item">
                       <div className="shap-info">
                         <span>{item.feature}</span>
                         <span className="val">{item.value}</span>
@@ -173,15 +204,21 @@ const DashboardTab = ({ alerts, filteredAlerts, selectedAlert, setSelectedAlert,
                         <span className="impact-val">{(((item.impact || item.contribution) || 0) * 100).toFixed(0)}%</span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+                  )) : (
+                    <div className="empty-shap-note">
+                      {selectedIsBenign ? 'Skipped SHAP and agent review because the ML score stayed below the alert threshold.' : 'No feature explanation available for this record.'}
+                    </div>
+                  )}
+	                </div>
+	              </div>
 
               <div className="recommendation-section">
                 <h4><Zap size={16} /> AGENT RECOMMENDATION</h4>
                 <div className="recommendation-box">
                   <p style={{ minHeight: '40px' }}>
-                    {selectedAlert.recommendation?.includes('HOST ISOLATED') || selectedAlert.recommendation?.includes('IP WHITELISTED') ? (
+                    {selectedIsBenign ? (
+                      <>The simulated flow was classified as <strong>benign</strong>. The ML score stayed below the alert threshold, so no incident response action is required.</>
+                    ) : selectedAlert.recommendation?.includes('HOST ISOLATED') || selectedAlert.recommendation?.includes('IP WHITELISTED') ? (
                       <strong>{selectedAlert.recommendation}</strong>
                     ) : (
                       <>IP <strong>{selectedAlert.src_ip}</strong> exhibits behavior consistent with <strong>{selectedAlert.threat_type}</strong>.</>
@@ -200,7 +237,7 @@ const DashboardTab = ({ alerts, filteredAlerts, selectedAlert, setSelectedAlert,
                     <button 
                       className={`action-btn primary`}
                       onClick={handleIsolate}
-                      disabled={actionStatus !== 'idle' || selectedAlert.status === 'RESOLVED'}
+                      disabled={selectedIsBenign || actionStatus !== 'idle' || selectedAlert.status === 'RESOLVED'}
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                     >
                       {actionStatus === 'isolating' ? (
@@ -220,7 +257,7 @@ const DashboardTab = ({ alerts, filteredAlerts, selectedAlert, setSelectedAlert,
                     <button 
                       className="action-btn secondary"
                       onClick={handleWhitelist}
-                      disabled={actionStatus !== 'idle' || selectedAlert.status === 'RESOLVED'}
+                      disabled={selectedIsBenign || actionStatus !== 'idle' || selectedAlert.status === 'RESOLVED'}
                       style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                     >
                       {actionStatus === 'whitelisting' ? (

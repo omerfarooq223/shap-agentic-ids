@@ -3,46 +3,44 @@ export const ATTACK_PRESETS = [
     label: 'DDoS Flood', icon: '⚡', src_ip: '185.220.101.47', dst_port: 80,
     flow: {
       src_ip: '185.220.101.47', dst_ip: '192.168.1.1', dst_port: 80,
-      'Destination Port': 80, 'Flow Duration': 1200, 'Total Fwd Packets': 9800,
-      'Total Length of Fwd Packets': 980000, 'Fwd Packet Length Max': 100,
-      'Fwd Packet Length Mean': 100, 'Flow Bytes/s': 815000, 'Flow Packets/s': 8166,
-      'Fwd Packets/s': 8166, 'SYN Flag Count': 9800, 'Max Packet Length': 100,
-      'Average Packet Size': 100
+      'Destination Port': 80, 'Flow Duration': 711, 'Total Fwd Packets': 1,
+      'Total Backward Packets': 2, 'Total Length of Fwd Packets': 668100,
+      'Total Length of Bwd Packets': 3, 'Fwd Packet Length Mean': 2064,
+      'Bwd Packet Length Mean': 2671, 'Flow Bytes/s': 1150832,
+      'Flow Packets/s': 198395, 'Fwd Packets/s': 121, 'Bwd Packets/s': 669
     }
   },
   {
-    label: 'Port Scan', icon: '🔍', src_ip: '45.33.32.156', dst_port: 22,
+    label: 'Port Scan', icon: '🔍', src_ip: '45.33.32.156', dst_port: 139,
     flow: {
-      src_ip: '45.33.32.156', dst_ip: '192.168.1.1', dst_port: 22,
-      'Destination Port': 22, 'Flow Duration': 500, 'Total Fwd Packets': 200,
-      'Total Length of Fwd Packets': 200, 'Fwd Packet Length Mean': 1,
-      'Flow Bytes/s': 400, 'Flow Packets/s': 400, 'Fwd Packets/s': 400,
-      'RST Flag Count': 200, 'SYN Flag Count': 200, 'Max Packet Length': 1,
-      'Average Packet Size': 1
+      src_ip: '45.33.32.156', dst_ip: '192.168.1.1', dst_port: 139,
+      'Destination Port': 139, 'Flow Duration': 446330, 'Total Fwd Packets': 1,
+      'Total Backward Packets': 5, 'Total Length of Fwd Packets': 570018,
+      'Total Length of Bwd Packets': 9314, 'Fwd Packet Length Mean': 2962,
+      'Bwd Packet Length Mean': 2934, 'Flow Bytes/s': 62446612,
+      'Flow Packets/s': 153449, 'Fwd Packets/s': 14858, 'Bwd Packets/s': 15492
     }
   },
   {
     label: 'Brute Force', icon: '🔨', src_ip: '91.213.50.4', dst_port: 22,
     flow: {
       src_ip: '91.213.50.4', dst_ip: '192.168.1.1', dst_port: 22,
-      'Destination Port': 22, 'Flow Duration': 30000000, 'Total Fwd Packets': 5000,
-      'Total Backward Packets': 3000, 'Total Length of Fwd Packets': 300000,
-      'Total Length of Bwd Packets': 360000, 'Fwd Packet Length Mean': 60,
-      'Bwd Packet Length Mean': 120, 'Flow Bytes/s': 8500, 'Flow Packets/s': 260,
-      'Fwd Packets/s': 166, 'PSH Flag Count': 5000, 'ACK Flag Count': 8000,
-      'Max Packet Length': 200, 'Average Packet Size': 82
+      'Destination Port': 22, 'Flow Duration': 10413, 'Total Fwd Packets': 9,
+      'Total Backward Packets': 5, 'Total Length of Fwd Packets': 121976,
+      'Total Length of Bwd Packets': 2829, 'Fwd Packet Length Mean': 2640,
+      'Bwd Packet Length Mean': 3171, 'Flow Bytes/s': 3577,
+      'Flow Packets/s': 6, 'Fwd Packets/s': 3, 'Bwd Packets/s': 360941
     }
   },
   {
     label: 'Data Exfil', icon: '📤', src_ip: '103.251.167.20', dst_port: 443,
     flow: {
       src_ip: '103.251.167.20', dst_ip: '10.0.0.5', dst_port: 443,
-      'Destination Port': 443, 'Flow Duration': 120000000, 'Total Fwd Packets': 600,
-      'Total Backward Packets': 800, 'Total Length of Bwd Packets': 1120000,
-      'Bwd Packet Length Max': 1500, 'Bwd Packet Length Mean': 1400,
-      'Flow Bytes/s': 9800, 'Flow Packets/s': 11, 'Fwd Packets/s': 5,
-      'ACK Flag Count': 1400, 'PSH Flag Count': 800,
-      'Max Packet Length': 1500, 'Packet Length Variance': 480000, 'Average Packet Size': 820
+      'Destination Port': 443, 'Flow Duration': 329262, 'Total Fwd Packets': 1,
+      'Total Backward Packets': 2, 'Total Length of Fwd Packets': 672457,
+      'Total Length of Bwd Packets': 10914, 'Fwd Packet Length Mean': 2414,
+      'Bwd Packet Length Mean': 2272, 'Flow Bytes/s': 11400790,
+      'Flow Packets/s': 76, 'Fwd Packets/s': 22, 'Bwd Packets/s': 45694
     }
   },
 ];

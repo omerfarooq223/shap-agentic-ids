@@ -5,6 +5,13 @@ import {
 } from 'lucide-react';
 import { API_CONFIG, getAuthHeaders } from '../constants';
 
+const wasCaughtByIds = (round) => {
+  if (typeof round.caught_by_ids === 'boolean') return round.caught_by_ids;
+  const riskScore = Number(round.defender_result?.risk_score) || 0;
+  const mlConfidence = Number(round.ml_confidence ?? round.defender_result?.ml_confidence) || 0;
+  return riskScore > 5 || mlConfidence >= 0.5;
+};
+
 const RedTeamTab = () => {
   const [battleHistory, setBattleHistory] = useState([]);
   const [isFighting, setIsFighting] = useState(false);
@@ -41,7 +48,7 @@ const RedTeamTab = () => {
   const stats = useMemo(() => {
     if (battleHistory.length === 0) return { caught: 0, bypassed: 0, avgRisk: 0, successRate: 0 };
 
-    const caught = battleHistory.filter(r => r.defender_result.risk_score > 5).length;
+    const caught = battleHistory.filter(wasCaughtByIds).length;
     const bypassed = battleHistory.length - caught;
     const avgRisk = (battleHistory.reduce((sum, r) => sum + r.defender_result.risk_score, 0) / battleHistory.length).toFixed(1);
     const successRate = ((caught / battleHistory.length) * 100).toFixed(0);
@@ -763,85 +770,97 @@ const RedTeamTab = () => {
           </div>
         )}
 
-        {battleHistory.map((round, idx) => (
-          <div
-            key={idx}
-            className="battle-round-card"
-            style={{ animationDelay: `${idx * 0.1}s` }}
-            onClick={() => setExpandedRound(expandedRound === idx ? null : idx)}
-          >
-            <div className="round-badge">ROUND {round.round}</div>
+        {battleHistory.map((round, idx) => {
+          const caught = wasCaughtByIds(round);
+          const mlConfidence = Number(round.ml_confidence ?? round.defender_result?.ml_confidence ?? 0);
+          return (
+            <div
+              key={idx}
+              className="battle-round-card"
+              style={{ animationDelay: `${idx * 0.1}s` }}
+              onClick={() => setExpandedRound(expandedRound === idx ? null : idx)}
+            >
+              <div className="round-badge">ROUND {round.round}</div>
 
-            <div className="battle-grid">
-              {/* Attacker Section */}
-              <div className="battle-side attacker">
-                <div className="side-label">
-                  <Flame size={16} />
-                  <span>ATTACKER AGENT</span>
-                </div>
-                <div className="payload-box">
-                  <div className="payload-header">
-                    Targeting {round.attacker_payload.dst_ip}:{round.attacker_payload.dst_port}
+              <div className="battle-grid">
+                {/* Attacker Section */}
+                <div className="battle-side attacker">
+                  <div className="side-label">
+                    <Flame size={16} />
+                    <span>ATTACKER AGENT</span>
                   </div>
-                  <div className="payload-content">
-                    <pre>{JSON.stringify({
-                      protocol: round.attacker_payload.protocol,
-                      fwd_packet_len: round.attacker_payload['Fwd Packet Length Mean'],
-                      bwd_packet_len: round.attacker_payload['Bwd Packet Length Mean']
-                    }, null, 2)}</pre>
+                  <div className="payload-box">
+                    <div className="payload-header">
+                      Targeting {round.attacker_payload.dst_ip}:{round.attacker_payload.dst_port}
+                    </div>
+                    <div className="payload-content">
+                      <pre>{JSON.stringify({
+                        protocol: round.attacker_payload.protocol,
+                        fwd_packet_len: round.attacker_payload['Fwd Packet Length Mean'],
+                        bwd_packet_len: round.attacker_payload['Bwd Packet Length Mean']
+                      }, null, 2)}</pre>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="battle-vs">
-                <div className="vs-line"></div>
-                <div className="vs-circle">VS</div>
-                <div className="vs-line"></div>
-              </div>
-
-              {/* Defender Section */}
-              <div className="battle-side defender">
-                <div className="side-label">
-                  <Shield size={16} />
-                  <span>DEFENDER AGENT (IDS)</span>
+                <div className="battle-vs">
+                  <div className="vs-line"></div>
+                  <div className="vs-circle">VS</div>
+                  <div className="vs-line"></div>
                 </div>
-                <div className={`defense-result ${round.defender_result.risk_score > 5 ? 'caught' : 'bypassed'}`}>
-                  <div className="result-status">
-                    {round.defender_result.risk_score > 5 ? (
-                      <>
-                        <ShieldAlert size={20} />
-                        <span>CAUGHT</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 size={20} />
-                        <span>BYPASSED</span>
-                      </>
+
+                {/* Defender Section */}
+                <div className="battle-side defender">
+                  <div className="side-label">
+                    <Shield size={16} />
+                    <span>DEFENDER AGENT (IDS)</span>
+                  </div>
+                  <div className={`defense-result ${caught ? 'caught' : 'bypassed'}`}>
+                    <div className="result-status">
+                      {caught ? (
+                        <>
+                          <ShieldAlert size={20} />
+                          <span>CAUGHT</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 size={20} />
+                          <span>BYPASSED</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="risk-metric">
+                      Risk Score: <strong>{round.defender_result.risk_score}/10</strong>
+                    </div>
+                    <div className="risk-metric">
+                      ML Score: <strong>{(mlConfidence * 100).toFixed(1)}%</strong>
+                    </div>
+                    {round.detection_basis && (
+                      <div className="risk-metric">
+                        Basis: <strong>{round.detection_basis}</strong>
+                      </div>
                     )}
-                  </div>
-                  <div className="risk-metric">
-                    Risk Score: <strong>{round.defender_result.risk_score}/10</strong>
-                  </div>
-                  <div className="reasoning-snippet">
-                    {round.defender_result.llm_reasoning || "Analyzing patterns..."}
+                    <div className="reasoning-snippet">
+                      {round.defender_result.llm_reasoning || "Analyzing patterns..."}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Critic Feedback */}
-            <div className="critic-feedback-section">
-              <div className="side-label">
-                <MessageSquare size={16} />
-                <span>CRITIC FEEDBACK</span>
-              </div>
-              <div className="feedback-content">
-                <ChevronRight size={16} className="bullet" />
-                <p>{round.critic_feedback}</p>
+              {/* Critic Feedback */}
+              <div className="critic-feedback-section">
+                <div className="side-label">
+                  <MessageSquare size={16} />
+                  <span>CRITIC FEEDBACK</span>
+                </div>
+                <div className="feedback-content">
+                  <ChevronRight size={16} className="bullet" />
+                  <p>{round.critic_feedback}</p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
