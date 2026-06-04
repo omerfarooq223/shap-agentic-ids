@@ -224,7 +224,7 @@ IS Project/
 ---
 
 ## 🛡️ Security & Hardening
-- **API Security:** Privileged routes accept either a valid `X-API-KEY` header (`INTERNAL_API_KEY`, 32+ chars in production) or an authenticated Flask session after `POST /api/v1/auth/login`. The React dashboard unlocks via session cookies (`credentials: 'include'`).
+- **API Security:** Privileged routes accept a valid `X-API-KEY` header (`INTERNAL_API_KEY`, 32+ chars in production), an authenticated Flask session, or the signed browser session token returned by `POST /api/v1/auth/login`. The React dashboard unlocks without shipping the API key in the frontend bundle.
 - **Runtime validation:** `ENVIRONMENT=production` enforces `INTERNAL_API_KEY`, `FRONTEND_ORIGIN`, and related checks at startup (`validate_runtime_config()`).
 - **Rate Limiting:** Enforced via `Flask-Limiter` to prevent DoS attacks on the LLM reasoning engine.
 - **Graceful Degradation:** Adaptive dynamic queue-depth load shedding (e.g. `>2000` dropped to Layer 1 fast-path) safely maintains throughput and acts as an anti-flood safeguard when the system is under intense volumetric DDoS attacks. 

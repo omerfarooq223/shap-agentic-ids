@@ -133,7 +133,7 @@ Open your browser:
 http://localhost:5173
 ```
 
-**Unlock the console:** Enter the same value as `INTERNAL_API_KEY` from your root `.env` on the access gate. The app calls `POST /api/v1/auth/login` and stores an HttpOnly session cookie for subsequent API calls.
+**Unlock the console:** Enter the same value as `INTERNAL_API_KEY` from your root `.env` on the access gate. The app calls `POST /api/v1/auth/login`, stores the HttpOnly session cookie when available, and uses the returned signed browser token for deployed frontend requests.
 
 You should see the **Agentic IDS Dashboard** with:
 - 🛡️ System status indicator
@@ -332,7 +332,7 @@ python src/train.py --force
    ```
    `wsgi.py` loads `create_app()` and runs `initialize_system()` before serving.
 
-2. Use environment variables for configuration (`FRONTEND_ORIGIN`, `SESSION_COOKIE_SECURE=true` behind HTTPS)
+2. Use environment variables for configuration (`FRONTEND_ORIGIN`; cookie settings are selected automatically for HTTPS frontend origins)
 3. Implement request caching for identical flows
 4. Use local Ollama for unlimited inference (no GROQ token limits)
 

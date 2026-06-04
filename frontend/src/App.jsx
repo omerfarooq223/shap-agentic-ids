@@ -13,7 +13,14 @@ import RedTeamTab from './components/RedTeamTab';
 import ChatWidget from './components/ChatWidget';
 import SimulatorModal from './components/SimulatorModal';
 import { Sword } from 'lucide-react';
-import { ATTACK_PRESETS, DEMO_ALERTS, INITIAL_CHAT_MESSAGE, API_CONFIG } from './constants';
+import {
+  ATTACK_PRESETS,
+  DEMO_ALERTS,
+  INITIAL_CHAT_MESSAGE,
+  API_CONFIG,
+  getAuthHeaders,
+  setSessionToken
+} from './constants';
 import ErrorBoundary from './components/ErrorBoundary';
 import { sanitizeInput, isValidAPIResponse } from './utils/sanitization';
 import './App.css';
@@ -36,6 +43,16 @@ const readStoredVoicePersona = () => {
   } catch {
     return 'jarvis';
   }
+};
+
+const requestSessionStatus = async () => {
+  const res = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/session`, {
+    headers: getAuthHeaders(),
+    credentials: API_CONFIG.CREDENTIALS
+  });
+  if (!res.ok) return false;
+  const data = await res.json();
+  return Boolean(data.authenticated);
 };
 
 const App = () => {
@@ -74,23 +91,22 @@ const App = () => {
   const benchmarkAbortRef = useRef(null);
 
   useEffect(() => {
-    const checkSession = async () => {
-      try {
-        const res = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/session`, {
-          credentials: API_CONFIG.CREDENTIALS
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setAuthenticated(Boolean(data.authenticated));
-        }
-      } catch {
-        setAuthenticated(false);
-      } finally {
-        setAuthChecked(true);
-      }
-    };
+    let cancelled = false;
 
-    checkSession();
+    requestSessionStatus()
+      .then(isAuthenticated => {
+        if (!cancelled) setAuthenticated(isAuthenticated);
+      })
+      .catch(() => {
+        if (!cancelled) setAuthenticated(false);
+      })
+      .finally(() => {
+        if (!cancelled) setAuthChecked(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const unlockConsole = async (event) => {
@@ -107,9 +123,16 @@ const App = () => {
         body: JSON.stringify({ api_key: accessKey.trim() })
       });
       if (!res.ok) throw new Error('Invalid access key.');
-      setAuthenticated(true);
+      const data = await res.json();
+      setSessionToken(data.access_token || '');
+      const sessionReady = await requestSessionStatus();
+      setAuthenticated(sessionReady);
+      if (!sessionReady) {
+        throw new Error('Access key accepted, but the browser could not keep the session.');
+      }
       setAccessKey('');
     } catch (err) {
+      setSessionToken('');
       setAuthError(err.message || 'Could not unlock console.');
       setAuthenticated(false);
     } finally {
@@ -129,12 +152,13 @@ const App = () => {
     try {
       const res = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
         method: 'POST',
-        headers: API_CONFIG.HEADERS,
+        headers: getAuthHeaders(),
         credentials: API_CONFIG.CREDENTIALS,
         body: JSON.stringify({ message: msg }),
         signal: abortController.signal
       });
       if (res.status === 401) {
+        setSessionToken('');
         setAuthenticated(false);
         throw new Error('Unauthorized');
       }
@@ -163,7 +187,7 @@ const App = () => {
     try {
       await fetch(`${API_CONFIG.BASE_URL}/api/test/stress`, {
         method: 'POST',
-        headers: API_CONFIG.HEADERS,
+        headers: getAuthHeaders(),
         credentials: API_CONFIG.CREDENTIALS
       });
       // Alerts will start flowing in via the existing poll effect
@@ -179,7 +203,7 @@ const App = () => {
     try {
       await fetch(`${API_CONFIG.BASE_URL}/api/test/malicious`, {
         method: 'POST',
-        headers: API_CONFIG.HEADERS,
+        headers: getAuthHeaders(),
         credentials: API_CONFIG.CREDENTIALS
       });
       // specific single high-grade alert will flow in via polling
@@ -198,6 +222,7 @@ const App = () => {
       if (!isScanning || !authenticated) return;
       try {
         const res = await fetch(`${API_CONFIG.BASE_URL}/api/v1/alerts`, {
+          headers: getAuthHeaders(),
           credentials: API_CONFIG.CREDENTIALS
         });
         if (res.ok) {
@@ -212,6 +237,7 @@ const App = () => {
             setSelectedAlert(s => s?.id === 'demo-1' ? data[0] : s);
           }
         } else if (res.status === 401) {
+          setSessionToken('');
           setAuthenticated(false);
           setBackendStatus('offline');
         } else {
@@ -261,7 +287,7 @@ const App = () => {
 
     fetch(`${API_CONFIG.BASE_URL}/api/v1/voice/persona`, {
       method: 'POST',
-      headers: API_CONFIG.HEADERS,
+      headers: getAuthHeaders(),
       credentials: API_CONFIG.CREDENTIALS,
       body: JSON.stringify({ persona: voicePersona })
     })
@@ -275,7 +301,7 @@ const App = () => {
     if (authenticated) {
       fetch(`${API_CONFIG.BASE_URL}/api/v1/voice/toggle`, {
         method: 'POST',
-        headers: API_CONFIG.HEADERS,
+        headers: getAuthHeaders(),
         credentials: API_CONFIG.CREDENTIALS,
         body: JSON.stringify({ enabled: isVoiceEnabled })
       })

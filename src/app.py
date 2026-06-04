@@ -29,6 +29,7 @@ from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from pydantic import ValidationError
 from dotenv import load_dotenv
 
@@ -54,7 +55,7 @@ app = Flask(__name__)
 app.config.update(
     SECRET_KEY=config.SESSION_SECRET_KEY,
     SESSION_COOKIE_HTTPONLY=True,
-    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SAMESITE=config.SESSION_COOKIE_SAMESITE,
     SESSION_COOKIE_SECURE=config.SESSION_COOKIE_SECURE,
 )
 
@@ -63,7 +64,7 @@ CORS(
     app, 
     origins=[config.FRONTEND_ORIGIN],  # Now required, no default wildcard
     methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "X-API-KEY"],
+    allow_headers=["Content-Type", "X-API-KEY", "Authorization"],
     supports_credentials=True,
     max_age=3600
 )
@@ -71,12 +72,38 @@ CORS(
 logger.info(f"✓ CORS configured for origin(s): {config.FRONTEND_ORIGIN}")
 
 
+def _session_serializer() -> URLSafeTimedSerializer:
+    return URLSafeTimedSerializer(config.SESSION_SECRET_KEY, salt="soc-console-session")
+
+
+def _create_session_token() -> str:
+    return _session_serializer().dumps({"authenticated": True, "issued_at": int(time.time())})
+
+
+def _is_valid_session_token(token: str) -> bool:
+    if not token:
+        return False
+    try:
+        payload = _session_serializer().loads(
+            token,
+            max_age=config.SESSION_TOKEN_MAX_AGE_SECONDS,
+        )
+    except (BadSignature, SignatureExpired):
+        return False
+    return bool(payload.get("authenticated"))
+
+
 def _is_authorized_request() -> bool:
     expected = config.get_internal_api_key()
     supplied = request.headers.get("X-API-KEY")
     if supplied and expected and hmac.compare_digest(supplied, expected):
         return True
-    return bool(session.get("authenticated"))
+    if session.get("authenticated"):
+        return True
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return _is_valid_session_token(auth_header.removeprefix("Bearer ").strip())
+    return False
 
 
 def _unauthorized_response():
@@ -246,7 +273,7 @@ def auth_login():
         session.clear()
         session["authenticated"] = True
         session["issued_at"] = time.time()
-        return jsonify({"authenticated": True}), 200
+        return jsonify({"authenticated": True, "access_token": _create_session_token()}), 200
 
     return _unauthorized_response()
 

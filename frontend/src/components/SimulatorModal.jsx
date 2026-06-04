@@ -1,5 +1,5 @@
 import { Zap, RefreshCw } from 'lucide-react';
-import { API_CONFIG } from '../constants';
+import { API_CONFIG, getAuthHeaders } from '../constants';
 
 const ALLOWED_FLOW_KEYS = new Set([
   'src_ip',
@@ -105,7 +105,7 @@ const SimulatorModal = ({
           try {
             const res = await fetch(`${API_CONFIG.BASE_URL}/detect`, {
               method: 'POST',
-              headers: API_CONFIG.HEADERS,
+              headers: getAuthHeaders(),
               credentials: API_CONFIG.CREDENTIALS,
               body: JSON.stringify({ flow: flowData })
             });

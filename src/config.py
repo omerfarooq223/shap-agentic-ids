@@ -101,7 +101,7 @@ else:
     logger.info("✓ INTERNAL_API_KEY validated (strong key configured)", extra={"key_length": len(INTERNAL_API_KEY)})
 
 SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY") or INTERNAL_API_KEY or "invalid-runtime-secret"
-SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
+SESSION_TOKEN_MAX_AGE_SECONDS = int(os.getenv("SESSION_TOKEN_MAX_AGE_SECONDS", "86400"))
 
 # Rate Limiting Configuration
 RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
@@ -127,6 +127,48 @@ if FRONTEND_ORIGIN == "*":
     logger.warning("    For production, set FRONTEND_ORIGIN to your specific domain")
 else:
     logger.info(f"✓ CORS configured for: {FRONTEND_ORIGIN}")
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _origin_requires_cross_site_cookie(origin: str) -> bool:
+    primary_origin = (origin or "").split(",")[0].strip().lower()
+    if not primary_origin.startswith("https://"):
+        return False
+    return not any(host in primary_origin for host in ("localhost", "127.0.0.1", "[::1]"))
+
+
+def _normalise_samesite(value: str) -> str:
+    mapping = {"lax": "Lax", "strict": "Strict", "none": "None"}
+    normalized = (value or "").strip().lower()
+    if normalized not in mapping:
+        _CONFIG_ERRORS.append("SESSION_COOKIE_SAMESITE must be one of Lax, Strict, or None.")
+        return "Lax"
+    return mapping[normalized]
+
+
+_CROSS_SITE_SESSION_COOKIE = _origin_requires_cross_site_cookie(FRONTEND_ORIGIN)
+SESSION_COOKIE_SECURE = _env_bool(
+    "SESSION_COOKIE_SECURE",
+    ENVIRONMENT == "production" or _CROSS_SITE_SESSION_COOKIE,
+)
+SESSION_COOKIE_SAMESITE = _normalise_samesite(
+    os.getenv("SESSION_COOKIE_SAMESITE") or ("None" if _CROSS_SITE_SESSION_COOKIE else "Lax")
+)
+
+if SESSION_COOKIE_SAMESITE == "None" and not SESSION_COOKIE_SECURE:
+    _CONFIG_ERRORS.append("SESSION_COOKIE_SECURE=true is required when SESSION_COOKIE_SAMESITE=None.")
+
+logger.info(
+    "✓ Session cookie configured: SameSite=%s, Secure=%s",
+    SESSION_COOKIE_SAMESITE,
+    SESSION_COOKIE_SECURE,
+)
 
 
 def validate_runtime_config() -> None:

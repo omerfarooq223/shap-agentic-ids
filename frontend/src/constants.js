@@ -97,3 +97,34 @@ export const API_CONFIG = {
     'Content-Type': 'application/json'
   }
 };
+
+export const SESSION_TOKEN_KEY = 'idsSessionToken';
+
+export const getSessionToken = () => {
+  try {
+    return window.sessionStorage?.getItem?.(SESSION_TOKEN_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
+export const setSessionToken = (token) => {
+  try {
+    if (token) {
+      window.sessionStorage?.setItem?.(SESSION_TOKEN_KEY, token);
+    } else {
+      window.sessionStorage?.removeItem?.(SESSION_TOKEN_KEY);
+    }
+  } catch {
+    // Hardened browser settings can disable web storage.
+  }
+};
+
+export const getAuthHeaders = () => {
+  const headers = { ...API_CONFIG.HEADERS };
+  const token = getSessionToken();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+};

@@ -28,7 +28,8 @@ This repository targets **Render** (backend) and **Vercel** (frontend). Local de
 | `FRONTEND_ORIGIN` | Exact Vercel URL, e.g. `https://your-app.vercel.app` |
 | `FLASK_PORT` | Match Render `$PORT` |
 | `SESSION_SECRET_KEY` | Optional; defaults to `INTERNAL_API_KEY` if unset |
-| `SESSION_COOKIE_SECURE` | `true` when served over HTTPS |
+| `SESSION_COOKIE_SECURE` | Optional; defaults to `true` for HTTPS frontend origins |
+| `SESSION_COOKIE_SAMESITE` | Optional; defaults to `None` for HTTPS frontend origins |
 
 Generate a strong `INTERNAL_API_KEY`:
 
@@ -67,7 +68,8 @@ Commit trained artifacts under `models/` (`rf_model.pkl`, `scaler.pkl`, `shap_ex
 | Issue | Check |
 |-------|--------|
 | Frontend cannot reach API | `VITE_API_URL` is the Render HTTPS URL |
-| CORS / login fails | `FRONTEND_ORIGIN` matches Vercel URL; cookies need HTTPS in production (`SESSION_COOKIE_SECURE=true`) |
+| Unlock screen returns after login | Redeploy backend; auth now uses a signed browser token plus deployment-safe cookies |
+| CORS / login fails | `FRONTEND_ORIGIN` matches Vercel URL; if overriding cookies, use `SESSION_COOKIE_SAMESITE=None` with `SESSION_COOKIE_SECURE=true` |
 | Startup crash in production | `validate_runtime_config()` — missing `INTERNAL_API_KEY`, `FRONTEND_ORIGIN`, or invalid CORS |
 | GROQ errors | Valid `GROQ_API_KEY` on Render |
 | AbuseIPDB limits | Reputation checks degrade gracefully |

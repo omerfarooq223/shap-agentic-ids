@@ -69,7 +69,7 @@ flowchart LR
 
 The Flask app gates privileged routes with a shared `require_auth` decorator:
 
-1. **Browser (SOC dashboard):** Analyst enters `INTERNAL_API_KEY` once; `POST /api/v1/auth/login` sets an HttpOnly session. Subsequent `fetch` calls use `credentials: 'include'`.
+1. **Browser (SOC dashboard):** Analyst enters `INTERNAL_API_KEY` once; `POST /api/v1/auth/login` sets an HttpOnly session and returns a signed browser session token. Subsequent `fetch` calls use `credentials: 'include'` plus the bearer token when a deployed browser cannot keep cross-site cookies.
 2. **Automation / tests:** Send `X-API-KEY: <INTERNAL_API_KEY>`.
 3. **Public probes:** `GET /health`, `GET /status`, `GET /api/metrics/benchmarks` remain open for monitoring.
 

@@ -3,7 +3,7 @@ import {
   Sword, ShieldAlert, MessageSquare, Target, ChevronRight, Activity,
   AlertTriangle, CheckCircle2, TrendingUp, BarChart3, Flame, Shield
 } from 'lucide-react';
-import { API_CONFIG } from '../constants';
+import { API_CONFIG, getAuthHeaders } from '../constants';
 
 const RedTeamTab = () => {
   const [battleHistory, setBattleHistory] = useState([]);
@@ -21,7 +21,7 @@ const RedTeamTab = () => {
     try {
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/red-team/battle`, {
         method: 'POST',
-        headers: API_CONFIG.HEADERS,
+        headers: getAuthHeaders(),
         credentials: API_CONFIG.CREDENTIALS,
         body: JSON.stringify({ iterations })
       });

@@ -263,7 +263,11 @@ class TestAlertsEndpoint:
     def test_rejects_unauthorized_alert_feed(self, flask_client):
         client, *_, mock_repo = flask_client
         mock_repo.get_all.return_value = []
-        resp = client.get("/api/v1/alerts")
+
+        from src.app import app
+        with app.test_client() as anonymous_client:
+            resp = anonymous_client.get("/api/v1/alerts")
+
         assert resp.status_code == 401
 
 

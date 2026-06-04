@@ -22,14 +22,14 @@ Privileged endpoints require **either**:
 
 | Method | Use case |
 |--------|----------|
-| **Session cookie** | Browser dashboard after `POST /api/v1/auth/login` with `{ "api_key": "<INTERNAL_API_KEY>" }`. Use `credentials: 'include'` on `fetch`. |
+| **Session cookie or signed bearer token** | Browser dashboard after `POST /api/v1/auth/login` with `{ "api_key": "<INTERNAL_API_KEY>" }`. Use `credentials: 'include'`; deployed SPAs may also send the returned token as `Authorization: Bearer <token>`. |
 | **`X-API-KEY` header** | Scripts, curl, integration tests — value must match `INTERNAL_API_KEY`. Compared with `hmac.compare_digest`. |
 
 Public (no auth): `GET /health`, `GET /status`, `GET /api/metrics/benchmarks`.
 
 **Development:** If `INTERNAL_API_KEY` is unset and `ENVIRONMENT` is not `production`, a development-only default key is used (see `.env.example`).
 
-**Production:** Set `ENVIRONMENT=production`, a 32+ character `INTERNAL_API_KEY`, `FRONTEND_ORIGIN`, and optionally `SESSION_SECRET_KEY` and `SESSION_COOKIE_SECURE=true` behind HTTPS.
+**Production:** Set `ENVIRONMENT=production`, a 32+ character `INTERNAL_API_KEY`, and `FRONTEND_ORIGIN`. `SESSION_COOKIE_SECURE=true` and `SESSION_COOKIE_SAMESITE=None` are selected automatically for HTTPS frontend origins unless overridden.
 
 ### Auth endpoints
 
@@ -44,7 +44,7 @@ Returns whether the current request is authorized.
 ```json
 { "api_key": "your-internal-api-key" }
 ```
-**Success:** `200` with `{ "authenticated": true }` and session cookie.  
+**Success:** `200` with `{ "authenticated": true, "access_token": "..." }` and session cookie.  
 **Failure:** `401`.
 
 #### `POST /api/v1/auth/logout`
@@ -143,7 +143,7 @@ Live packet pipeline (see [PACKET_CAPTURE_GUIDE.md](PACKET_CAPTURE_GUIDE.md)).
 - **Rate limiting:** `Flask-Limiter` per route class (detect, chat, health, test).
 - **Schema enforcement:** Pydantic models in `src/schemas.py`; model feature list validated against `models/model_metadata.json` at inference load time.
 - **CORS:** Locked to `FRONTEND_ORIGIN` (defaults to `http://localhost:5173` in development).
-- **Sessions:** HttpOnly, `SameSite=Lax`, `Secure` when `SESSION_COOKIE_SECURE=true`.
+- **Sessions:** HttpOnly cookies use `SameSite=Lax` locally and `SameSite=None; Secure` for HTTPS frontend origins. Browser deployments can also use the signed session bearer token returned by login.
 
 ---
 

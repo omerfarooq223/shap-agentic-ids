@@ -51,9 +51,43 @@ def test_session_auth_flow_allows_protected_reads(flask_client):
     login = flask_client.post("/api/v1/auth/login", json={"api_key": config.INTERNAL_API_KEY})
     assert login.status_code == 200
     assert login.get_json()["authenticated"] is True
+    assert "access_token" in login.get_json()
+
+    set_cookie = login.headers.get("Set-Cookie", "")
+    assert "HttpOnly" in set_cookie
+    assert f"SameSite={config.SESSION_COOKIE_SAMESITE}" in set_cookie
+    if config.SESSION_COOKIE_SECURE:
+        assert "Secure" in set_cookie
 
     resp = flask_client.get("/api/v1/alerts")
     assert resp.status_code == 200
+
+
+def test_bearer_session_token_allows_protected_reads(flask_client):
+    """Deployed browser clients can use the signed token when cross-site cookies are blocked."""
+    flask_client, *_, mock_repo = flask_client
+    mock_repo.get_all.return_value = []
+
+    login = flask_client.post("/api/v1/auth/login", json={"api_key": config.INTERNAL_API_KEY})
+    token = login.get_json()["access_token"]
+
+    from src.app import app
+    with app.test_client() as token_client:
+        resp = token_client.get("/api/v1/alerts", headers={"Authorization": f"Bearer {token}"})
+
+    assert resp.status_code == 200
+
+
+def test_invalid_bearer_token_is_rejected(flask_client):
+    """Malformed bearer tokens do not unlock protected endpoints."""
+    client, *_, mock_repo = flask_client
+    mock_repo.get_all.return_value = []
+
+    from src.app import app
+    with app.test_client() as token_client:
+        resp = token_client.get("/api/v1/alerts", headers={"Authorization": "Bearer invalid"})
+
+    assert resp.status_code == 401
 
 def test_rate_limiting_headers(flask_client):
     """Verify that rate limiting headers are present in responses."""
