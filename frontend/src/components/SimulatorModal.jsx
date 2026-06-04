@@ -106,6 +106,7 @@ const SimulatorModal = ({
             const res = await fetch(`${API_CONFIG.BASE_URL}/detect`, {
               method: 'POST',
               headers: API_CONFIG.HEADERS,
+              credentials: API_CONFIG.CREDENTIALS,
               body: JSON.stringify({ flow: flowData })
             });
             const data = await res.json();

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Flask API Server Launcher
-Properly handles module imports and starts the API server
+Development Flask API Server Launcher
+Properly handles module imports and starts the local API server
 
 Security Notes:
+  - Production should use: gunicorn -c gunicorn.conf.py
   - Run behind a reverse proxy (nginx, Caddy) with TLS termination for production
   - Or use --cert and --key flags with SSL context
   - Never expose Flask directly to the internet without HTTPS

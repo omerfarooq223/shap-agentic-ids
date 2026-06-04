@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import {
   Sword, ShieldAlert, MessageSquare, Target, ChevronRight, Activity,
-  AlertTriangle, CheckCircle2, TrendingUp, Zap, Clock, BarChart3, Flame, Shield
+  AlertTriangle, CheckCircle2, TrendingUp, BarChart3, Flame, Shield
 } from 'lucide-react';
 import { API_CONFIG } from '../constants';
 
@@ -22,6 +22,7 @@ const RedTeamTab = () => {
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/red-team/battle`, {
         method: 'POST',
         headers: API_CONFIG.HEADERS,
+        credentials: API_CONFIG.CREDENTIALS,
         body: JSON.stringify({ iterations })
       });
 

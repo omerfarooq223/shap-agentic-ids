@@ -93,6 +93,14 @@ pip install -r requirements.txt
 # Configure environment
 cp .env.example .env
 # Edit .env with your GROQ_API_KEY and ABUSEIPDB_API_KEY
+# Development defaults: INTERNAL_API_KEY and FRONTEND_ORIGIN are pre-filled in .env.example
+```
+
+### Frontend environment
+```bash
+cd frontend
+cp .env.example .env.local
+# VITE_API_URL only — API key is entered in the dashboard unlock screen (not stored in the frontend bundle)
 ```
 
 ### 3. Frontend Setup
@@ -117,8 +125,11 @@ python src/train.py
 
 ### 2. Launching the System
 ```bash
-# Start the Flask Backend (default port 5005)
+# Start the Flask Backend for local development (default port 5005)
 python run_flask.py
+
+# Production (Gunicorn + WSGI)
+# gunicorn -c gunicorn.conf.py
 
 # Start the React Dashboard (in a separate terminal)
 cd frontend
@@ -186,7 +197,7 @@ IS Project/
 │   │   ├── ThreatGlobe.jsx # 3D Three.js Live Attack Geolocation Map
 │   │   ├── Analytics.jsx   # Reporting, Visualizations & Metrics Dashboard
 │   │   └── App.jsx         # Main React App Core & Routing
-│   └── package.json        # Frontend Dependencies & NPM Scripts
+│   └── package.json        # Frontend deps (`npm run test` — Vitest + Testing Library)
 ├── scripts/                # Research, Utilities & Report Scripts
 │   ├── run_evaluation.py   # Cross-Dataset Benchmarking & Model Scorer
 │   └── red_team_battle.py  # Autonomous Adversarial Loop Engine (New)
@@ -197,7 +208,9 @@ IS Project/
 │   └── test_rag_service.py     # TF-IDF knowledge retrieval unit tests
 ├── data/                   # Datasets (CICIDS2017 & UNSW-NB15)
 │   └── knowledge/          # RAG markdown playbooks (MITRE, benchmarks, threat patterns)
-├── models/                 # Serialized Pickle Models (`rf_model.pkl`, `scaler.pkl`)
+├── models/                 # Serialized models (`rf_model.pkl`, `scaler.pkl`, `model_metadata.json`)
+├── wsgi.py                 # Production WSGI entry (`gunicorn -c gunicorn.conf.py`)
+├── gunicorn.conf.py        # Gunicorn bind/workers configuration
 ├── docs/                   # Full Technical Reporting & Academic Documentation
 │   ├── API.md              # REST API Interface Spec Details
 │   ├── SYSTEM_ARCHITECTURE.md # Architecture Blueprints
@@ -211,7 +224,8 @@ IS Project/
 ---
 
 ## 🛡️ Security & Hardening
-- **API Security:** All endpoints are protected by a 256-bit `INTERNAL_API_KEY`.
+- **API Security:** Privileged routes accept either a valid `X-API-KEY` header (`INTERNAL_API_KEY`, 32+ chars in production) or an authenticated Flask session after `POST /api/v1/auth/login`. The React dashboard unlocks via session cookies (`credentials: 'include'`).
+- **Runtime validation:** `ENVIRONMENT=production` enforces `INTERNAL_API_KEY`, `FRONTEND_ORIGIN`, and related checks at startup (`validate_runtime_config()`).
 - **Rate Limiting:** Enforced via `Flask-Limiter` to prevent DoS attacks on the LLM reasoning engine.
 - **Graceful Degradation:** Adaptive dynamic queue-depth load shedding (e.g. `>2000` dropped to Layer 1 fast-path) safely maintains throughput and acts as an anti-flood safeguard when the system is under intense volumetric DDoS attacks. 
 - **Defense Against Explanation Manipulation:** Cross-Signal Verification (CSV) cross-checks SHAP values against external immutable networking logics, offering an inherent mechanism to counter adversarial machine learning explainability exploits.

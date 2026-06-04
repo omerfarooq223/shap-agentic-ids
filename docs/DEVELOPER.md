@@ -75,6 +75,28 @@ def build_agent():
     ...
 ```
 
+## Calling authenticated APIs locally
+
+Privileged Flask routes require a session or `X-API-KEY`:
+
+```bash
+# Header-based (pytest, curl, scripts)
+curl -X POST http://localhost:5005/detect \
+  -H "Content-Type: application/json" \
+  -H "X-API-KEY: $INTERNAL_API_KEY" \
+  -d '{"flow": {"src_ip": "10.0.0.1", "dst_ip": "8.8.8.8", "dst_port": 443}}'
+
+# Session-based (browser flow)
+curl -c cookies.txt -X POST http://localhost:5005/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d "{\"api_key\": \"$INTERNAL_API_KEY\"}"
+curl -b cookies.txt http://localhost:5005/api/v1/alerts
+```
+
+Frontend tests mock `/api/v1/auth/session` in `frontend/src/tests/App.test.jsx`; run with `cd frontend && npm run test`.
+
+---
+
 ## Troubleshooting Common Agent Issues
 
 ### 1. LLM Timeouts or API Errors

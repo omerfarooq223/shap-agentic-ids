@@ -61,6 +61,21 @@ flowchart LR
 *   **Networking**: Scapy
 *   **Frontend**: React, Vite, Three.js (Threat Globe), Lucide Icons
 *   **Voice**: Web Speech API & macOS `say` subprocess
+*   **Production serving**: `wsgi.py` + `gunicorn -c gunicorn.conf.py` (development uses `run_flask.py`)
+
+---
+
+## 🔐 API Access Model
+
+The Flask app gates privileged routes with a shared `require_auth` decorator:
+
+1. **Browser (SOC dashboard):** Analyst enters `INTERNAL_API_KEY` once; `POST /api/v1/auth/login` sets an HttpOnly session. Subsequent `fetch` calls use `credentials: 'include'`.
+2. **Automation / tests:** Send `X-API-KEY: <INTERNAL_API_KEY>`.
+3. **Public probes:** `GET /health`, `GET /status`, `GET /api/metrics/benchmarks` remain open for monitoring.
+
+At startup, `validate_runtime_config()` fails fast in production if `INTERNAL_API_KEY`, `FRONTEND_ORIGIN`, or CORS policy is invalid. Inference loads `models/model_metadata.json` to verify the feature schema matches the trained Random Forest.
+
+See [API.md](API.md) for endpoint-level detail.
 
 ---
 

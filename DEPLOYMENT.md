@@ -1,60 +1,85 @@
 # Deploying the Agentic IDS (Render + Vercel)
 
-This repository is configured for deployment using Render (backend) and Vercel (frontend) only. All Docker, docker-compose, and alternative hosting instructions were removed to keep the docs focused.
+This repository targets **Render** (backend) and **Vercel** (frontend). Local development uses `python run_flask.py`; production uses **Gunicorn** and `wsgi.py`.
 
-Summary:
-- Backend: Render.com (Web Service)
-- Frontend: Vercel (React/Vite)
+---
 
-## Quick Render (Backend) steps
-1. Sign in to https://render.com and create a new **Web Service** connected to this GitHub repo.
-2. Use these build / start commands in Render:
+## Quick Render (Backend)
 
-```bash
-# Build step (Render will run this automatically)
-pip install -r requirements.txt
+1. Sign in to [Render](https://render.com) and create a **Web Service** from this repo.
+2. **Build command:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. **Start command:**
+   ```bash
+   gunicorn -c gunicorn.conf.py
+   ```
+   On Render, set **`FLASK_PORT`** to the service **`PORT`** (Render injects `PORT`; `gunicorn.conf.py` reads `FLASK_PORT` for the bind address).
 
-# Start command (set as the start command in Render)
-gunicorn --bind 0.0.0.0:$PORT 'src.app:app'
-```
+4. **Required environment variables:**
 
-3. Add the required environment variables in the Render dashboard:
-- `GROQ_API_KEY` — your GROQ LLM key
-- `ABUSEIPDB_API_KEY` — AbuseIPDB key
-- `INTERNAL_API_KEY` — a random secret for internal auth
-- `FLASK_PORT` (optional) — default Render provides `$PORT`
+| Variable | Notes |
+|----------|--------|
+| `ENVIRONMENT` | `production` (enforces security checks at startup) |
+| `GROQ_API_KEY` | Groq LLM key |
+| `ABUSEIPDB_API_KEY` | AbuseIPDB key |
+| `INTERNAL_API_KEY` | 32+ character secret; same value analysts enter in the dashboard unlock screen |
+| `FRONTEND_ORIGIN` | Exact Vercel URL, e.g. `https://your-app.vercel.app` |
+| `FLASK_PORT` | Match Render `$PORT` |
+| `SESSION_SECRET_KEY` | Optional; defaults to `INTERNAL_API_KEY` if unset |
+| `SESSION_COOKIE_SECURE` | `true` when served over HTTPS |
 
-4. Deploy. Render will provide a public URL like `https://<your-service>.onrender.com`.
+Generate a strong `INTERNAL_API_KEY`:
 
-Notes: the free tier may sleep after inactivity (short cold starts). This is the simplest recommended path.
-
-## Quick Vercel (Frontend) steps
-1. Sign in to https://vercel.com and import the frontend project from this repo (select the `frontend/` folder).
-2. Set build command (Vercel usually detects this): `npm run build` and output dir: `dist`.
-3. Add environment variable in Vercel: `VITE_API_URL=https://<your-render-url>`
-4. Deploy. Vercel will build and publish the static frontend.
-
-## Notes and Config
-- We removed `frontend/Dockerfile` to keep the workflow simple (Render + Vercel).
-- Keep your trained models either committed to `models/` or hosted in an object store and referenced by the app.
-
-Environment variables to set on Render:
-- `GROQ_API_KEY`
-- `ABUSEIPDB_API_KEY`
-- `INTERNAL_API_KEY`
-
-Generate a secure `INTERNAL_API_KEY` locally:
 ```bash
 python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 ```
 
+5. Deploy. Render provides a URL like `https://<your-service>.onrender.com`.
+
+**Note:** Free tier may sleep after inactivity (cold starts).
+
+---
+
+## Quick Vercel (Frontend)
+
+1. Import the repo on [Vercel](https://vercel.com), root directory **`frontend/`**.
+2. **Build:** `npm run build` — **Output:** `dist`.
+3. **Environment variable:**
+   - `VITE_API_URL=https://<your-render-url>` (no trailing path; must match `https://`)
+4. Deploy.
+
+The dashboard authenticates with `POST /api/v1/auth/login` using your `INTERNAL_API_KEY`. Do **not** put the API key in `VITE_*` variables (removed from `frontend/.env.example`).
+
+Ensure Render `FRONTEND_ORIGIN` exactly matches the Vercel origin so CORS and session cookies work.
+
+---
+
+## Models
+
+Commit trained artifacts under `models/` (`rf_model.pkl`, `scaler.pkl`, `shap_explainer.pkl`, `model_metadata.json`) or load them from object storage in your deploy pipeline.
+
+---
+
 ## Troubleshooting
-- If the frontend cannot reach the backend: ensure `VITE_API_URL` is the exact Render URL (including `https://`).
-- If GROQ calls fail: ensure `GROQ_API_KEY` is present and valid on Render.
-- If AbuseIPDB calls hit limits: reputation checks will be skipped gracefully; system falls back to heuristics.
 
-## What I changed
-- Removed references to Docker, docker-compose, Cloudflare Tunnel, and DigitalOcean hosting options to keep instructions targeted.
-- Deleted `frontend/Dockerfile` from the repo as requested.
+| Issue | Check |
+|-------|--------|
+| Frontend cannot reach API | `VITE_API_URL` is the Render HTTPS URL |
+| CORS / login fails | `FRONTEND_ORIGIN` matches Vercel URL; cookies need HTTPS in production (`SESSION_COOKIE_SECURE=true`) |
+| Startup crash in production | `validate_runtime_config()` — missing `INTERNAL_API_KEY`, `FRONTEND_ORIGIN`, or invalid CORS |
+| GROQ errors | Valid `GROQ_API_KEY` on Render |
+| AbuseIPDB limits | Reputation checks degrade gracefully |
 
-If you'd like, I can also add a minimal `render.yaml` for automatic Render setup or create a short CI job to deploy on push — tell me which and I'll add it.
+---
+
+## Local production smoke test
+
+```bash
+export ENVIRONMENT=production
+export INTERNAL_API_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export FRONTEND_ORIGIN=http://localhost:5173
+export FLASK_PORT=5005
+gunicorn -c gunicorn.conf.py
+```

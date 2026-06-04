@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Shield, Terminal, Search,
-  RefreshCw, BarChart3, Zap, Bug,
+  BarChart3, Zap, Bug,
   Activity, TrendingUp, Globe, Volume2, VolumeX, Cpu, Brain, ExternalLink
 } from 'lucide-react';
 import Analytics from './Analytics';
@@ -30,15 +30,28 @@ const GitHubIcon = ({ size = 16, color = "currentColor" }) => (
   </svg>
 );
 
+const readStoredVoicePersona = () => {
+  try {
+    return window.localStorage?.getItem?.('voicePersona') || 'jarvis';
+  } catch {
+    return 'jarvis';
+  }
+};
+
 const App = () => {
   const [activeTab, setActiveTab] = useState('Dashboard');
   const [alerts, setAlerts] = useState(DEMO_ALERTS);
   const [selectedAlert, setSelectedAlert] = useState(DEMO_ALERTS[0]);
-  const [isScanning, setIsScanning] = useState(true);
+  const [isScanning] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [backendStatus, setBackendStatus] = useState('offline');
+  const [authChecked, setAuthChecked] = useState(false);
+  const [authenticated, setAuthenticated] = useState(false);
+  const [accessKey, setAccessKey] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(false);
-  const [voicePersona, setVoicePersona] = useState(() => localStorage.getItem('voicePersona') || 'jarvis');
+  const [voicePersona, setVoicePersona] = useState(readStoredVoicePersona);
   const [profileOpen, setProfileOpen] = useState(false);
   const lastSpokenId = useRef(null);
 
@@ -60,6 +73,50 @@ const App = () => {
   const pollIntervalRef = useRef(null);
   const benchmarkAbortRef = useRef(null);
 
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        const res = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/session`, {
+          credentials: API_CONFIG.CREDENTIALS
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAuthenticated(Boolean(data.authenticated));
+        }
+      } catch {
+        setAuthenticated(false);
+      } finally {
+        setAuthChecked(true);
+      }
+    };
+
+    checkSession();
+  }, []);
+
+  const unlockConsole = async (event) => {
+    event.preventDefault();
+    if (!accessKey.trim() || authLoading) return;
+
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      const res = await fetch(`${API_CONFIG.BASE_URL}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: API_CONFIG.HEADERS,
+        credentials: API_CONFIG.CREDENTIALS,
+        body: JSON.stringify({ api_key: accessKey.trim() })
+      });
+      if (!res.ok) throw new Error('Invalid access key.');
+      setAuthenticated(true);
+      setAccessKey('');
+    } catch (err) {
+      setAuthError(err.message || 'Could not unlock console.');
+      setAuthenticated(false);
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
 
   const sendChat = async () => {
     if (!chatInput.trim() || chatLoading) return;
@@ -73,9 +130,14 @@ const App = () => {
       const res = await fetch(`${API_CONFIG.BASE_URL}/chat`, {
         method: 'POST',
         headers: API_CONFIG.HEADERS,
+        credentials: API_CONFIG.CREDENTIALS,
         body: JSON.stringify({ message: msg }),
         signal: abortController.signal
       });
+      if (res.status === 401) {
+        setAuthenticated(false);
+        throw new Error('Unauthorized');
+      }
       const data = await res.json();
       if (isValidAPIResponse(data)) {
         const sources = Array.isArray(data.rag_sources)
@@ -101,7 +163,8 @@ const App = () => {
     try {
       await fetch(`${API_CONFIG.BASE_URL}/api/test/stress`, {
         method: 'POST',
-        headers: API_CONFIG.HEADERS
+        headers: API_CONFIG.HEADERS,
+        credentials: API_CONFIG.CREDENTIALS
       });
       // Alerts will start flowing in via the existing poll effect
     } catch (e) {
@@ -116,7 +179,8 @@ const App = () => {
     try {
       await fetch(`${API_CONFIG.BASE_URL}/api/test/malicious`, {
         method: 'POST',
-        headers: API_CONFIG.HEADERS
+        headers: API_CONFIG.HEADERS,
+        credentials: API_CONFIG.CREDENTIALS
       });
       // specific single high-grade alert will flow in via polling
     } catch (e) {
@@ -131,9 +195,11 @@ const App = () => {
   useEffect(() => {
     // Poll real Flask backend every 5 seconds
     const fetchAlerts = async () => {
-      if (!isScanning) return;
+      if (!isScanning || !authenticated) return;
       try {
-        const res = await fetch(`${API_CONFIG.BASE_URL}/api/v1/alerts`);
+        const res = await fetch(`${API_CONFIG.BASE_URL}/api/v1/alerts`, {
+          credentials: API_CONFIG.CREDENTIALS
+        });
         if (res.ok) {
           const data = await res.json();
           setBackendStatus('online');
@@ -145,6 +211,9 @@ const App = () => {
             });
             setSelectedAlert(s => s?.id === 'demo-1' ? data[0] : s);
           }
+        } else if (res.status === 401) {
+          setAuthenticated(false);
+          setBackendStatus('offline');
         } else {
           setBackendStatus('offline');
         }
@@ -162,7 +231,9 @@ const App = () => {
       benchmarkAbortRef.current?.abort();
       benchmarkAbortRef.current = new AbortController();
       try {
-        const res = await fetch(`${API_CONFIG.BASE_URL}/api/metrics/benchmarks`);
+          const res = await fetch(`${API_CONFIG.BASE_URL}/api/metrics/benchmarks`, {
+            credentials: API_CONFIG.CREDENTIALS
+          });
         if (res.ok) {
           const data = await res.json();
           if (isValidAPIResponse(data)) {
@@ -177,44 +248,47 @@ const App = () => {
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
       benchmarkAbortRef.current?.abort();
     };
-  }, [isScanning]);
+  }, [isScanning, authenticated]);
 
   // Sync Voice Persona with backend
   useEffect(() => {
-    localStorage.setItem('voicePersona', voicePersona);
+    try {
+      window.localStorage?.setItem?.('voicePersona', voicePersona);
+    } catch {
+      // Browser storage can be unavailable in hardened or test environments.
+    }
+    if (!authenticated) return;
 
     fetch(`${API_CONFIG.BASE_URL}/api/v1/voice/persona`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': API_CONFIG.API_KEY
-      },
+      headers: API_CONFIG.HEADERS,
+      credentials: API_CONFIG.CREDENTIALS,
       body: JSON.stringify({ persona: voicePersona })
     })
       .then(res => res.json())
       .then(data => console.log('Backend voice persona updated:', data))
       .catch(err => console.error('Failed to sync voice persona with backend:', err));
-  }, [voicePersona]);
+  }, [voicePersona, authenticated]);
 
   // Sync Voice Enable/Disable State with backend & handle immediate mute cancellation
   useEffect(() => {
-    fetch(`${API_CONFIG.BASE_URL}/api/v1/voice/toggle`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-KEY': API_CONFIG.API_KEY
-      },
-      body: JSON.stringify({ enabled: isVoiceEnabled })
-    })
-      .then(res => res.json())
-      .then(data => console.log('Backend voice enabled status updated:', data))
-      .catch(err => console.error('Failed to sync voice toggle state with backend:', err));
+    if (authenticated) {
+      fetch(`${API_CONFIG.BASE_URL}/api/v1/voice/toggle`, {
+        method: 'POST',
+        headers: API_CONFIG.HEADERS,
+        credentials: API_CONFIG.CREDENTIALS,
+        body: JSON.stringify({ enabled: isVoiceEnabled })
+      })
+        .then(res => res.json())
+        .then(data => console.log('Backend voice enabled status updated:', data))
+        .catch(err => console.error('Failed to sync voice toggle state with backend:', err));
+    }
 
     // Immediately stop speech synthesis when user clicks the mute button
     if (!isVoiceEnabled) {
       window.speechSynthesis.cancel();
     }
-  }, [isVoiceEnabled]);
+  }, [isVoiceEnabled, authenticated]);
 
   // Frontend Voice Assistant Logic (Premium Conversational Personas)
   useEffect(() => {
@@ -224,9 +298,9 @@ const App = () => {
     if (latestAlert.id !== lastSpokenId.current && latestAlert.risk_score >= 7.0) {
       lastSpokenId.current = latestAlert.id;
 
-      let message = '';
-      let rate = 0.88; // Deliberate speed (sounds less robotic and more calculated)
-      let pitch = 0.96; // Deeper, more human pitch
+      let message;
+      let rate;
+      let pitch;
 
       if (voicePersona === 'jarvis') {
         // Conversational punctuation (...) injects human breathing pauses in Web Speech API
@@ -318,10 +392,6 @@ const App = () => {
     URL.revokeObjectURL(url);
   };
 
-  const handleScanToggle = () => {
-    setIsScanning(!isScanning);
-  };
-
   const filteredAlerts = alerts.filter(a =>
     a.src_ip.includes(searchQuery) ||
     a.threat_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -370,6 +440,29 @@ const App = () => {
   return (
     <ErrorBoundary>
       <div className="soc-container">
+        {authChecked && !authenticated && (
+          <div className="auth-lock-backdrop">
+            <form className="auth-lock-card" onSubmit={unlockConsole}>
+              <div className="auth-lock-icon">
+                <Shield size={24} />
+              </div>
+              <h2>Unlock SOC Console</h2>
+              <label htmlFor="access-key">Access Key</label>
+              <input
+                id="access-key"
+                type="password"
+                value={accessKey}
+                onChange={(event) => setAccessKey(event.target.value)}
+                autoComplete="current-password"
+              />
+              {authError && <p className="auth-lock-error">{authError}</p>}
+              <button type="submit" disabled={authLoading || !accessKey.trim()}>
+                {authLoading ? 'Unlocking...' : 'Unlock'}
+              </button>
+            </form>
+          </div>
+        )}
+
         {/* Sidebar Navigation */}
         <nav className="soc-sidebar">
           <div className="logo">

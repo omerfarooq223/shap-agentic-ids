@@ -321,7 +321,7 @@ To prevent architectural debt and maintain Single Responsibility Principle (SRP)
 
 The system has been hardened for production deployment with the following controls:
 
-1. **Authentication (X-API-KEY)**: All sensitive endpoints (`/detect`, `/api/v1/alerts`) require a valid Internal API Key.
+1. **Authentication (session or X-API-KEY)**: Sensitive endpoints (`/detect`, `/chat`, `/api/v1/alerts`, `/stream/*`, red-team, test hooks) accept either a valid `X-API-KEY` header (`INTERNAL_API_KEY`, constant-time compare) or an authenticated Flask session after `POST /api/v1/auth/login`. The React dashboard uses cookie-based sessions (`credentials: 'include'`); scripts and pytest use the header. Production requires `ENVIRONMENT=production`, a 32+ character key, and `FRONTEND_ORIGIN`.
 2. **Payload Validation (Pydantic V2)**: Strict schema enforcement prevents injection attacks and ensures ML model compatibility.
 3. **Denial of Service (DoS) Mitigation**:
    - **Rate Limiting**: Enforces request quotas per IP.

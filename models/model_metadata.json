@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "model_type": "RandomForestClassifier",
+  "scaler_type": "MinMaxScaler",
+  "numeric_features": [
+    "Destination Port",
+    "Flow Duration",
+    "Total Fwd Packets",
+    "Total Backward Packets",
+    "Total Length of Fwd Packets",
+    "Total Length of Bwd Packets",
+    "Fwd Packet Length Mean",
+    "Bwd Packet Length Mean",
+    "Flow Bytes/s",
+    "Flow Packets/s",
+    "Fwd Packets/s",
+    "Bwd Packets/s"
+  ],
+  "cross_dataset_mode": true,
+  "smote_strategy": 0.25
+}

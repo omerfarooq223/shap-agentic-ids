@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import logging
+import json
 import joblib
 import pandas as pd
 import numpy as np
@@ -123,6 +124,18 @@ def _save_artifacts(model: RandomForestClassifier, scaler: MinMaxScaler) -> None
     )
     joblib.dump(explainer, config.SHAP_EXPL_PATH)
     logger.info(f"SHAP explainer serialized to {config.SHAP_EXPL_PATH}")
+
+    metadata = {
+        "schema_version": 1,
+        "model_type": type(model).__name__,
+        "scaler_type": type(scaler).__name__,
+        "numeric_features": list(config.NUMERIC_FEATURES),
+        "cross_dataset_mode": config.CROSS_DATASET_MODE,
+        "smote_strategy": config.SMOTE_STRATEGY,
+    }
+    with open(config.MODEL_METADATA_PATH, "w", encoding="utf-8") as fh:
+        json.dump(metadata, fh, indent=2)
+    logger.info(f"Model metadata serialized to {config.MODEL_METADATA_PATH}")
 
 
 if __name__ == "__main__":

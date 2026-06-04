@@ -22,6 +22,8 @@ python src/train.py
 This creates:
 - `models/rf_model.pkl` - Random Forest classifier
 - `models/scaler.pkl` - Feature scaler
+- `models/shap_explainer.pkl` - SHAP TreeExplainer
+- `models/model_metadata.json` - Feature schema for inference validation
 
 ✅ **Status:** Models are trained and saved
 
@@ -29,21 +31,32 @@ This creates:
 
 ## Step 2: Configure API Keys (Optional but Recommended)
 
-Create `.env` file in project root:
+Copy and edit environment files:
 
 ```bash
-# Required for threat classification
-GROQ_API_KEY=gsk_your_key_here
+cp .env.example .env
+cd frontend && cp .env.example .env.local && cd ..
+```
 
-# Required for IP reputation checks
+Root `.env` (minimum for full agent pipeline):
+
+```bash
+GROQ_API_KEY=gsk_your_key_here
 ABUSEIPDB_API_KEY=your_key_here
 
-# Optional: Toggle backend (system-level) voice assistant (true/false)
-# If testing locally with the browser open, set to false to avoid echo
-ENABLE_BACKEND_VOICE=false
+# Included in .env.example for local dev (change before production):
+INTERNAL_API_KEY=change-this-development-key-000000000000
+FRONTEND_ORIGIN=http://localhost:5173
+ENVIRONMENT=development
 
-# Optional: Forensic chat RAG — number of retrieved passages (default 8)
+ENABLE_BACKEND_VOICE=false
 RAG_TOP_K=8
+```
+
+Frontend `.env.local` — only the API base URL (no API key in the bundle):
+
+```bash
+VITE_API_URL=http://localhost:5005
 ```
 
 **Without these keys:**
@@ -86,25 +99,10 @@ In a new terminal:
 ```bash
 cd /path/to/IS Project
 source venv/bin/activate
-```bash
-cd /path/to/IS Project
-source venv/bin/activate
-pytest tests/test_flask_api.py
+pytest tests/test_flask_api.py -v
 ```
 
-Expected output:
-```
-============================= test session starts ==============================
-platform darwin -- Python 3.14.0, pytest-8.3.4, pluggy-1.5.0
-rootdir: /path/to/IS Project
-configfile: pytest.ini
-collected 15 items
-
-tests/test_flask_api.py ...............                                  [100%]
-
-============================== 15 passed in 0.82s ==============================
-✓ All tests passed! Flask API is properly secured and integrated.
-```
+Tests use Flask's test client (no live server) and send `X-API-KEY` from `config.INTERNAL_API_KEY`.
 
 ---
 
@@ -129,11 +127,13 @@ Expected output:
 
 ## Step 6: Access the Dashboard
 
-Open your browser and navigate to:
+Open your browser:
 
 ```
 http://localhost:5173
 ```
+
+**Unlock the console:** Enter the same value as `INTERNAL_API_KEY` from your root `.env` on the access gate. The app calls `POST /api/v1/auth/login` and stores an HttpOnly session cookie for subsequent API calls.
 
 You should see the **Agentic IDS Dashboard** with:
 - 🛡️ System status indicator
@@ -160,9 +160,10 @@ The dashboard automatically polls the Flask API every 5 seconds. To capture real
 # 1. Ensure Flask is running with sudo (required for network sniffing):
 # sudo python run_flask.py
 
-# 2. Trigger the live capture via the API:
+# 2. Log in via session (browser) or pass X-API-KEY, then start capture:
 curl -X POST http://localhost:5005/stream/start \
   -H "Content-Type: application/json" \
+  -H "X-API-KEY: $INTERNAL_API_KEY" \
   -d '{"interface": "en0"}'
 ```
 Captured packets will be processed by the Agentic API and appear on the 3D globe and in the threat feed.
@@ -298,8 +299,11 @@ lsof -ti:5005 | xargs kill -9
 ## Development Commands
 
 ```bash
-# Run tests
+# Backend API tests
 pytest tests/test_flask_api.py -v
+
+# Frontend component tests (Vitest)
+cd frontend && npm run test
 
 # Check Flask app without starting server
 python -c "from src.app import initialize_system; initialize_system()"
@@ -316,36 +320,19 @@ python src/train.py --force
 
 ---
 
-## 🐳 Docker Deployment (1 Command)
-
-If you have Docker & Docker Compose installed, deploy entire system locally in one command:
-
-```bash
-# Create .env file first with your API keys
-cp .env.example .env
-# Edit .env with your GROQ_API_KEY and ABUSEIPDB_API_KEY
-
-# Start both backend and frontend
-docker-compose up --build
-
-# Access dashboard at: http://localhost:5173
-# API at: http://localhost:5005
-```
-
-Backend will auto-restart on crash, and both services will be healthchecked every 30 seconds.
-
----
-
 ## Performance Optimization
 
 ### For Production:
-1. Use Gunicorn instead of Flask dev server:
+1. Use Gunicorn with the WSGI entrypoint (not the Flask dev server):
    ```bash
    pip install gunicorn
-   gunicorn -w 4 -b 0.0.0.0:5005 "src.app:app"
+   export ENVIRONMENT=production
+   export FLASK_PORT=5005   # On Render, set FLASK_PORT to the platform $PORT
+   gunicorn -c gunicorn.conf.py
    ```
+   `wsgi.py` loads `create_app()` and runs `initialize_system()` before serving.
 
-2. Use environment variables for configuration
+2. Use environment variables for configuration (`FRONTEND_ORIGIN`, `SESSION_COOKIE_SECURE=true` behind HTTPS)
 3. Implement request caching for identical flows
 4. Use local Ollama for unlimited inference (no GROQ token limits)
 

@@ -51,9 +51,9 @@ FEATURE_RANGES = {
     "Destination Port": (0, 65535),
     "destination port": (0, 65535),
     
-    # Duration (0 to 24 hours in seconds)
-    "Flow Duration": (0, 86400),
-    "flow duration": (0, 86400),
+    # Duration in CICIDS-style microseconds (0 to 24 hours)
+    "Flow Duration": (0, 86_400_000_000),
+    "flow duration": (0, 86_400_000_000),
     
     # Packet counts (0 to 1 million packets per flow is reasonable)
     "Total Fwd Packets": (0, 1_000_000),

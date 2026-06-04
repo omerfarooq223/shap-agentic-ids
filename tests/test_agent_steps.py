@@ -138,6 +138,20 @@ class TestNodeVerify:
         assert result["threat_intel"]["zero_day_potential"] is True
         assert result["threat_intel"]["abuse_score"] == 50  # elevated score
 
+    def test_high_abuse_assigns_direct_threat(self, agent, base_state):
+        base_state["flow"]["src_ip"] = "8.8.8.8"
+        base_state["flow"]["dst_port"] = 22
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"data": {"abuseConfidenceScore": 95}}
+
+        with patch("src.config.ABUSEIPDB_API_KEY", "fake-key"):
+            with patch("src.agent.requests.get", return_value=mock_response):
+                result = agent.node_verify(base_state)
+
+        assert result["hypothesized_threat"] == "Brute-Force"
+        assert result["llm_confidence"] >= 0.7
+
     def test_api_failure_handled_gracefully(self, agent, base_state):
         base_state["flow"]["src_ip"] = "8.8.8.8"
         with patch("src.config.ABUSEIPDB_API_KEY", "fake-key"):

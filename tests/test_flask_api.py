@@ -94,6 +94,66 @@ class TestDetectBenign:
         assert "geo_location" in data
 
 
+class TestDetectFeatureMapping:
+    def test_model_receives_training_feature_names(self, flask_client):
+        client, mock_infer, *_ = flask_client
+        mock_infer.predict_proba.reset_mock()
+        mock_infer.predict_proba.return_value = 0.2
+
+        payload = {
+            "flow": {
+                "src_ip": "192.168.1.10",
+                "dst_ip": "8.8.8.8",
+                "dst_port": 443,
+                "Destination Port": 443,
+                "Flow Duration": 1200,
+            }
+        }
+
+        resp = client.post("/detect", json=payload, headers=AUTH_HEADERS)
+        assert resp.status_code == 200
+
+        flow_arg = mock_infer.predict_proba.call_args.args[0]
+        assert flow_arg["Destination Port"] == 443
+        assert flow_arg["Flow Duration"] == 1200
+        assert "destination_port" not in flow_arg
+        assert "flow_duration" not in flow_arg
+
+    def test_dst_port_populates_destination_port_when_omitted(self, flask_client):
+        client, mock_infer, *_ = flask_client
+        mock_infer.predict_proba.reset_mock()
+        mock_infer.predict_proba.return_value = 0.2
+
+        payload = {"flow": {"src_ip": "192.168.1.10", "dst_ip": "8.8.8.8", "dst_port": 8443}}
+
+        resp = client.post("/detect", json=payload, headers=AUTH_HEADERS)
+        assert resp.status_code == 200
+
+        flow_arg = mock_infer.predict_proba.call_args.args[0]
+        assert flow_arg["Destination Port"] == 8443
+
+    def test_cicids_microsecond_flow_duration_is_valid(self, flask_client):
+        client, mock_infer, *_ = flask_client
+        mock_infer.predict_proba.reset_mock()
+        mock_infer.predict_proba.return_value = 0.2
+
+        payload = {
+            "flow": {
+                "src_ip": "192.168.1.10",
+                "dst_ip": "8.8.8.8",
+                "dst_port": 443,
+                "Destination Port": 443,
+                "Flow Duration": 120_000_000,
+            }
+        }
+
+        resp = client.post("/detect", json=payload, headers=AUTH_HEADERS)
+        assert resp.status_code == 200
+
+        flow_arg = mock_infer.predict_proba.call_args.args[0]
+        assert flow_arg["Flow Duration"] == 120_000_000
+
+
 # ---------------------------------------------------------------------------
 # /detect — attack flow
 # ---------------------------------------------------------------------------
@@ -184,21 +244,27 @@ class TestAlertsEndpoint:
     def test_returns_200(self, flask_client):
         client, *_, mock_repo = flask_client
         mock_repo.get_all.return_value = []
-        resp = client.get("/api/v1/alerts")
+        resp = client.get("/api/v1/alerts", headers=AUTH_HEADERS)
         assert resp.status_code == 200
 
     def test_returns_list(self, flask_client):
         client, *_, mock_repo = flask_client
         mock_repo.get_all.return_value = []
-        data = client.get("/api/v1/alerts").get_json()
+        data = client.get("/api/v1/alerts", headers=AUTH_HEADERS).get_json()
         assert isinstance(data, list)
 
     def test_returns_populated_alerts(self, flask_client):
         client, *_, mock_repo = flask_client
         mock_repo.get_all.return_value = [{"threat_type": "DDoS", "risk_score": 9.1}]
-        data = client.get("/api/v1/alerts").get_json()
+        data = client.get("/api/v1/alerts", headers=AUTH_HEADERS).get_json()
         assert len(data) == 1
         assert data[0]["threat_type"] == "DDoS"
+
+    def test_rejects_unauthorized_alert_feed(self, flask_client):
+        client, *_, mock_repo = flask_client
+        mock_repo.get_all.return_value = []
+        resp = client.get("/api/v1/alerts")
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------

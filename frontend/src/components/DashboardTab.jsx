@@ -1,17 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Activity, AlertCircle, Lock, Cpu, Zap, Shield, ChevronRight, Loader2, CheckCircle2 } from 'lucide-react';
 
 const DashboardTab = ({ alerts, filteredAlerts, selectedAlert, setSelectedAlert, setAlerts }) => {
-  const [actionStatus, setActionStatus] = useState('idle'); // 'idle' | 'isolating' | 'isolated' | 'whitelisting' | 'whitelisted'
-
-  useEffect(() => {
-    setActionStatus('idle');
-  }, [selectedAlert?.id]);
+  const [actionState, setActionState] = useState({ alertId: null, status: 'idle' });
+  const actionStatus = actionState.alertId === selectedAlert?.id ? actionState.status : 'idle';
+  const setCurrentActionStatus = (status) => {
+    setActionState({ alertId: selectedAlert?.id ?? null, status });
+  };
 
   const handleIsolate = () => {
-    setActionStatus('isolating');
+    setCurrentActionStatus('isolating');
     setTimeout(() => {
-      setActionStatus('isolated');
+      setCurrentActionStatus('isolated');
       if (setAlerts) {
         setAlerts(prevAlerts => 
           prevAlerts.map(alert => 
@@ -30,9 +30,9 @@ const DashboardTab = ({ alerts, filteredAlerts, selectedAlert, setSelectedAlert,
   };
 
   const handleWhitelist = () => {
-    setActionStatus('whitelisting');
+    setCurrentActionStatus('whitelisting');
     setTimeout(() => {
-      setActionStatus('whitelisted');
+      setCurrentActionStatus('whitelisted');
       if (setAlerts) {
         setAlerts(prevAlerts => 
           prevAlerts.map(alert => 

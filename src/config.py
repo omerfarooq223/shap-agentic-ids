@@ -54,6 +54,7 @@ CICIDS_PATH = DATA_DIR / "CICIDS2017.csv"
 RF_MODEL_PATH = MODEL_DIR / "rf_model.pkl"
 SCALER_PATH = MODEL_DIR / "scaler.pkl"
 SHAP_EXPL_PATH = MODEL_DIR / "shap_explainer.pkl"
+MODEL_METADATA_PATH = MODEL_DIR / "model_metadata.json"
 
 # Network / Streaming Defaults
 DEFAULT_INTERFACE = os.getenv("CAPTURE_INTERFACE", "en0")
@@ -78,24 +79,30 @@ VOICE_PERSONA = os.getenv("VOICE_PERSONA", "jarvis").lower()
 # This ensures scientific validity for cross-dataset evaluation.
 CROSS_DATASET_MODE = os.getenv("CROSS_DATASET_MODE", "true").lower() == "true"
 
+# Environment Configuration
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+_CONFIG_ERRORS: list[str] = []
+
 # Security
 INTERNAL_API_KEY = os.getenv("INTERNAL_API_KEY")
 if not INTERNAL_API_KEY:
-    logger.error("\n" + "="*80)
-    logger.error("FATAL SECURITY ERROR: INTERNAL_API_KEY not set!")
-    logger.error("Set INTERNAL_API_KEY in .env file with a strong, random value.")
-    logger.error("Example: openssl rand -hex 32")
-    logger.error("="*80)
-    sys.exit(1)
+    if ENVIRONMENT == "production":
+        _CONFIG_ERRORS.append("INTERNAL_API_KEY must be set in production.")
+    else:
+        INTERNAL_API_KEY = "development-internal-key-change-me-000000"
+        logger.warning("INTERNAL_API_KEY not set; using development-only default.")
+elif len(INTERNAL_API_KEY) < 32:
+    message = "INTERNAL_API_KEY must be at least 32 characters."
+    if ENVIRONMENT == "production":
+        _CONFIG_ERRORS.append(message)
+    else:
+        logger.warning("%s Current key is accepted only because ENVIRONMENT is not production.", message)
+else:
+    logger.info("✓ INTERNAL_API_KEY validated (strong key configured)", extra={"key_length": len(INTERNAL_API_KEY)})
 
-if len(INTERNAL_API_KEY) < 32:
-    logger.error("\n" + "="*80)
-    logger.error(f"FATAL SECURITY ERROR: INTERNAL_API_KEY is too weak ({len(INTERNAL_API_KEY)} chars).")
-    logger.error("INTERNAL_API_KEY must be at least 32 characters (256 bits).")
-    logger.error("Generate with: openssl rand -hex 32")
-    logger.error("="*80)
-    sys.exit(1)
-logger.info("✓ INTERNAL_API_KEY validated (strong key configured)", extra={"key_length": len(INTERNAL_API_KEY)})
+SESSION_SECRET_KEY = os.getenv("SESSION_SECRET_KEY") or INTERNAL_API_KEY or "invalid-runtime-secret"
+SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
+
 # Rate Limiting Configuration
 RATE_LIMIT_ENABLED = os.getenv("RATE_LIMIT_ENABLED", "true").lower() == "true"
 RATE_LIMIT_DETECT = os.getenv("RATE_LIMIT_DETECT", "100 per minute")  # Critical endpoint
@@ -104,26 +111,15 @@ RATE_LIMIT_HEALTH = os.getenv("RATE_LIMIT_HEALTH", "1000 per minute") # Health c
 RATE_LIMIT_TEST = os.getenv("RATE_LIMIT_TEST", "10 per minute")       # Stress test (prevent abuse)
 
 # CORS Configuration with Security Validation
-FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN")
+FRONTEND_ORIGIN = os.getenv("FRONTEND_ORIGIN") or (
+    "http://localhost:5173" if ENVIRONMENT != "production" else ""
+)
 if not FRONTEND_ORIGIN:
-    logger.error("\n" + "="*80)
-    logger.error("FATAL SECURITY ERROR: FRONTEND_ORIGIN not set!")
-    logger.error("Set FRONTEND_ORIGIN in .env file to your frontend domain.")
-    logger.error("Examples:")
-    logger.error("  FRONTEND_ORIGIN=https://myapp.com  (production)")
-    logger.error("  FRONTEND_ORIGIN=http://localhost:5173  (development)")
-    logger.error("Never use '*' in production — it allows any origin to access the API!")
-    logger.error("="*80)
-    sys.exit(1)
+    _CONFIG_ERRORS.append("FRONTEND_ORIGIN must be set in production.")
 
 # Warn if using wildcard in non-development mode
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
 if FRONTEND_ORIGIN == "*" and ENVIRONMENT != "development":
-    logger.error("\n" + "="*80)
-    logger.error("FATAL SECURITY ERROR: CORS wildcard '*' not allowed in production!")
-    logger.error("Set a specific FRONTEND_ORIGIN domain and set ENVIRONMENT=production")
-    logger.error("="*80)
-    sys.exit(1)
+    _CONFIG_ERRORS.append("CORS wildcard '*' is not allowed outside development.")
 
 if FRONTEND_ORIGIN == "*":
     logger.warning("⚠️  CORS is configured to accept ANY origin (FRONTEND_ORIGIN='*')")
@@ -131,6 +127,12 @@ if FRONTEND_ORIGIN == "*":
     logger.warning("    For production, set FRONTEND_ORIGIN to your specific domain")
 else:
     logger.info(f"✓ CORS configured for: {FRONTEND_ORIGIN}")
+
+
+def validate_runtime_config() -> None:
+    """Raise a single clear error for security-sensitive startup problems."""
+    if _CONFIG_ERRORS:
+        raise RuntimeError("Invalid runtime configuration: " + " ".join(_CONFIG_ERRORS))
 
 # Secrets Management - Support for rotation without restart
 class SecretsManager:

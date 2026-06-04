@@ -164,7 +164,9 @@ class IDSAgent:
 
     def node_verify(self, state: AgentState) -> AgentState:
         logger.info("[Agent] VERIFY: threat intel")
-        src_ip = state.get("flow", {}).get("src_ip", "")
+        flow = state.get("flow", {})
+        src_ip = flow.get("src_ip", "")
+        dst_port = int(flow.get("dst_port", 0))
         ml_conf = state.get("ml_confidence", 0.0)
         abuse_score, intel_source, intel_status, is_zero_day = 0, "None", "skipped", False
 
@@ -186,10 +188,16 @@ class IDSAgent:
             # For zero-day potential, elevate the internal abuse score to reflect suspicion
             abuse_score = 50
 
-        return {
+        updates: AgentState = {
             **state,
             "threat_intel": {"abuse_score": abuse_score, "intel_source": intel_source, "intel_status": intel_status, "zero_day_potential": is_zero_day}
         }
+        if abuse_score > config.ABUSEIPDB_HIGH_CONFIDENCE_THRESHOLD and state.get("hypothesized_threat") in {"Unknown", None}:
+            threat = PORT_THREAT_HINTS.get(dst_port, "Anomaly")
+            updates["hypothesized_threat"] = threat
+            updates["llm_reasoning"] = f"High-confidence AbuseIPDB reputation matched traffic targeting port {dst_port}."
+            updates["llm_confidence"] = max(state.get("llm_confidence", 0.0), 0.7)
+        return updates
 
     def node_hypothesize(self, state: AgentState) -> AgentState:
         logger.info("[Agent] HYPOTHESIZE: calling LLM")
@@ -296,7 +304,27 @@ class IDSAgent:
         ml_conf_val = kwargs.get("ml_conf", ml_conf)
         shap_data = kwargs.get("shap_explanation", shap)
 
-        result = self.app.invoke({"flow": flow_data or {}, "ml_confidence": ml_conf_val or 0.0, "shap_explanation": shap_data or [], "_rehypothesis_attempts": 0})
+        initial_state = {
+            "flow": flow_data or {},
+            "ml_confidence": ml_conf_val or 0.0,
+            "shap_explanation": shap_data or [],
+            "_rehypothesis_attempts": 0,
+        }
+        result = self.app.invoke(initial_state)
+        if not isinstance(result, dict):
+            logger.warning("LangGraph app returned an invalid result; using deterministic fallback analysis.")
+            result = self.node_conclude({
+                **initial_state,
+                "hypothesized_threat": "Anomaly",
+                "llm_reasoning": "LangGraph unavailable; deterministic fallback used.",
+                "llm_confidence": config.FALLBACK_LLM_CONFIDENCE,
+                "threat_intel": {
+                    "abuse_score": 0,
+                    "intel_source": "None",
+                    "intel_status": "skipped",
+                    "zero_day_potential": False,
+                },
+            })
 
         # Ensure backward-compatible keys for tests and API consumers
         if isinstance(result, dict) and "threat_level" not in result:

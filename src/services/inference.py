@@ -23,10 +23,10 @@ from __future__ import annotations
 import logging
 import gc
 import hashlib
+import json
 import joblib
 import numpy as np
 import pandas as pd
-import shap
 from typing import Any
 
 from src import config
@@ -69,9 +69,12 @@ class InferenceService:
         if config.SHAP_EXPL_PATH.exists():
             self._explainer = joblib.load(config.SHAP_EXPL_PATH)
         else:
+            import shap
+
             logger.warning("SHAP explainer .pkl not found — rebuilding (slow) …")
             self._explainer = shap.TreeExplainer(self._model)
 
+        self._validate_model_metadata()
         logger.info("✓ InferenceService ready")
 
     @property
@@ -188,6 +191,33 @@ class InferenceService:
     def _hash_features(self, scaled: np.ndarray) -> str:
         """Hash feature vector for caching (optional)."""
         return hashlib.md5(scaled.tobytes()).hexdigest()
+
+    def _validate_model_metadata(self) -> None:
+        """Ensure runtime feature config matches the serialized model contract."""
+        if not config.MODEL_METADATA_PATH.exists():
+            raise RuntimeError(
+                f"Model metadata not found at {config.MODEL_METADATA_PATH}. "
+                "Retrain the model so feature metadata is serialized."
+            )
+
+        with open(config.MODEL_METADATA_PATH, "r", encoding="utf-8") as fh:
+            metadata = json.load(fh)
+
+        artifact_features = metadata.get("numeric_features")
+        if artifact_features != config.NUMERIC_FEATURES:
+            raise RuntimeError(
+                "Model feature schema mismatch. "
+                f"Artifact has {len(artifact_features or [])} features; "
+                f"runtime expects {len(config.NUMERIC_FEATURES)}."
+            )
+
+        expected_mode = metadata.get("cross_dataset_mode")
+        if expected_mode is not None and bool(expected_mode) != bool(config.CROSS_DATASET_MODE):
+            raise RuntimeError(
+                "Model training mode mismatch. "
+                f"Artifact cross_dataset_mode={expected_mode}; "
+                f"runtime CROSS_DATASET_MODE={config.CROSS_DATASET_MODE}."
+            )
 
     def _scale_features(self, flow: dict[str, Any]) -> np.ndarray:
         """

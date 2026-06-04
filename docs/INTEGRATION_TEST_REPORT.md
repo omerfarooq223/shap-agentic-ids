@@ -1,7 +1,9 @@
 # Integration Test Report: Agentic IDS Full Stack
 **Date:** May 2026  
-**Status:** ✅ **ALL 51 TESTS PASSED**  
+**Status:** ✅ **ALL 51 TESTS PASSED** (historical run)  
 **Environment:** local development  
+
+> **Current stack notes (2026):** API listens on **port 5005** (`run_flask.py` / `FLASK_PORT`). Privileged routes require **session auth** or **`X-API-KEY`**. Production uses **`gunicorn -c gunicorn.conf.py`** via `wsgi.py`. Re-run `pytest tests/test_flask_api.py` and `cd frontend && npm run test` for up-to-date verification.
 
 ---
 
@@ -27,13 +29,13 @@ I have completed end-to-end integration testing of the Agentic IDS system, cover
 | Environment Setup | `source venv/bin/activate` | ✅ Activated successfully | ✅ PASS |
 | Dependencies Check | Flask, joblib, shap, pandas | ✅ All installed | ✅ PASS |
 | Flask Installation | `pip install flask` | ✅ Installed (was missing) | ✅ PASS |
-| Server Start | `python src/app.py` | ✅ Listening on :5001 | ✅ PASS |
+| Server Start | `python run_flask.py` | ✅ Listening on :5005 | ✅ PASS |
 
 **Server Output:**
 ```
 2026-05-05 12:58:21,175 - __main__ - INFO - SYSTEM INITIALIZED SUCCESSFULLY
-2026-05-05 12:58:21,175 - __main__ - INFO - Starting Flask server on http://localhost:5001
-* Running on http://127.0.0.1:5001
+2026-05-05 12:58:21,175 - __main__ - INFO - Starting Flask server on http://localhost:5005
+* Running on http://127.0.0.1:5005
 ```
 
 ### 1.2 Model Loading Tests
@@ -58,7 +60,7 @@ I have completed end-to-end integration testing of the Agentic IDS system, cover
 
 **Request:**
 ```bash
-curl http://localhost:5001/health
+curl http://localhost:5005/health
 ```
 
 **Response:**
@@ -383,8 +385,8 @@ Frontend (React)
 
 | Test | Expected | Result | Status |
 |------|----------|--------|--------|
-| Localhost access | 127.0.0.1:5001 | ✅ Working | ✅ PASS |
-| Network access | 192.168.x.x:5001 | ✅ Working | ✅ PASS |
+| Localhost access | 127.0.0.1:5005 | ✅ Working | ✅ PASS |
+| Network access | 192.168.x.x:5005 | ✅ Working | ✅ PASS |
 | CORS handling | No blocked requests | ✅ No blocks | ✅ PASS |
 | Content-Type | application/json | ✅ Correct | ✅ PASS |
 
@@ -484,11 +486,11 @@ All integration tests pass successfully. The Agentic IDS system is:
 ## Appendix: Server URLs
 
 **Development Servers (Local):**
-- Flask Backend: http://localhost:5001
+- Flask Backend: http://localhost:5005
 - React Frontend: http://localhost:5173
-- API Health: http://localhost:5001/health
+- API Health: http://localhost:5005/health
 - Dashboard: http://localhost:5173
 
 **Key Endpoints:**
-- Flow Classification: POST http://localhost:5001/detect
-- Health Check: GET http://localhost:5001/health
+- Flow Classification: POST http://localhost:5005/detect
+- Health Check: GET http://localhost:5005/health

@@ -32,7 +32,7 @@ def test_api_key_enforcement(flask_client):
     # 1. No key
     resp = flask_client.post("/detect", json={"flow": payload})
     assert resp.status_code == 401
-    assert "missing X-API-KEY header" in resp.get_json()["error"]
+    assert resp.get_json()["error"] == "Unauthorized"
     
     # 2. Wrong key
     resp = flask_client.post("/detect", json={"flow": payload}, headers={"X-API-KEY": "wrong-key"})
@@ -40,6 +40,19 @@ def test_api_key_enforcement(flask_client):
     
     # 3. Correct key
     resp = flask_client.post("/detect", json={"flow": payload}, headers={"X-API-KEY": config.INTERNAL_API_KEY})
+    assert resp.status_code == 200
+
+
+def test_session_auth_flow_allows_protected_reads(flask_client):
+    """Browser clients authenticate once and then use an HttpOnly session cookie."""
+    flask_client, *_, mock_repo = flask_client
+    mock_repo.get_all.return_value = []
+
+    login = flask_client.post("/api/v1/auth/login", json={"api_key": config.INTERNAL_API_KEY})
+    assert login.status_code == 200
+    assert login.get_json()["authenticated"] is True
+
+    resp = flask_client.get("/api/v1/alerts")
     assert resp.status_code == 200
 
 def test_rate_limiting_headers(flask_client):

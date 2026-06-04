@@ -109,8 +109,10 @@ from src.packet_capture import LivePacketCapture, StreamingFlowProcessor
 def handle_flow(flow):
     """Send complete flow to IDS for detection"""
     try:
-        response = requests.post('http://localhost:5001/detect', 
-                                json={'flow': flow}, timeout=5)
+        response = requests.post('http://localhost:5005/detect',
+                                json={'flow': flow},
+                                headers={'X-API-KEY': os.environ['INTERNAL_API_KEY']},
+                                timeout=5)
         if response.ok:
             result = response.json()
             if result.get('anomaly'):
@@ -163,8 +165,9 @@ for flow in flows:
     extractor._calculate_flow_features(flow)
     
     # Send to IDS
-    response = requests.post('http://localhost:5001/detect',
-                            json={'flow': flow})
+    response = requests.post('http://localhost:5005/detect',
+                            json={'flow': flow},
+                            headers={'X-API-KEY': os.environ['INTERNAL_API_KEY']})
     if response.ok:
         result = response.json()
         if result.get('anomaly'):
@@ -304,8 +307,9 @@ Four new Flask endpoints for streaming packet processing:
 Start live packet capture on network interface.
 
 ```bash
-curl -X POST http://localhost:5001/stream/start \
+curl -X POST http://localhost:5005/stream/start \
   -H "Content-Type: application/json" \
+  -H "X-API-KEY: $INTERNAL_API_KEY" \
   -d '{"interface": "en0"}'
 
 # Response:
@@ -322,7 +326,8 @@ curl -X POST http://localhost:5001/stream/start \
 Stop packet capture.
 
 ```bash
-curl -X POST http://localhost:5001/stream/stop
+curl -X POST http://localhost:5005/stream/stop \
+  -H "X-API-KEY: $INTERNAL_API_KEY"
 
 # Response:
 # {
@@ -336,7 +341,8 @@ curl -X POST http://localhost:5001/stream/stop
 Get current streaming status.
 
 ```bash
-curl http://localhost:5001/stream/status
+curl http://localhost:5005/stream/status \
+  -H "X-API-KEY: $INTERNAL_API_KEY"
 
 # Response:
 # {
@@ -352,7 +358,8 @@ curl http://localhost:5001/stream/status
 Get detailed statistics.
 
 ```bash
-curl http://localhost:5001/stream/stats
+curl http://localhost:5005/stream/stats \
+  -H "X-API-KEY: $INTERNAL_API_KEY"
 
 # Response:
 # {
@@ -369,21 +376,27 @@ curl http://localhost:5001/stream/stats
 
 ```bash
 # Terminal 1: Start Flask server
-cd /Users/muhammadomerfarooq/Desktop/IS\ Project
+cd /path/to/IS\ Project
 source venv/bin/activate
-python3 src/app.py
+python run_flask.py
 
 # Terminal 2: Start streaming capture (with sudo)
-cd /Users/muhammadomerfarooq/Desktop/IS\ Project
+cd /path/to/IS\ Project
 source venv/bin/activate
+export INTERNAL_API_KEY=change-this-development-key-000000000000  # match your .env
 sudo python3 << 'EOF'
+import os
 import requests
 import json
 import time
 
+API_KEY = os.environ["INTERNAL_API_KEY"]
+HEADERS = {"X-API-KEY": API_KEY}
+
 # Start capture
-response = requests.post('http://localhost:5001/stream/start',
-                        json={'interface': 'en0'})
+response = requests.post('http://localhost:5005/stream/start',
+                        json={'interface': 'en0'},
+                        headers=HEADERS)
 print(f"Started: {response.json()}")
 
 # Let it run for 60 seconds
@@ -392,17 +405,17 @@ time.sleep(60)
 # Check status periodically
 for i in range(6):
     time.sleep(10)
-    status = requests.get('http://localhost:5001/stream/status').json()
+    status = requests.get('http://localhost:5005/stream/status', headers=HEADERS).json()
     print(f"Status: {status['flows_processed']} flows, "
           f"{status['anomalies_detected']} anomalies, "
           f"{status['flows_per_second']:.1f} flows/sec")
 
 # Get final statistics
-stats = requests.get('http://localhost:5001/stream/stats').json()
+stats = requests.get('http://localhost:5005/stream/stats', headers=HEADERS).json()
 print(f"\nFinal Stats:\n{json.dumps(stats, indent=2)}")
 
 # Stop capture
-response = requests.post('http://localhost:5001/stream/stop')
+response = requests.post('http://localhost:5005/stream/stop', headers=HEADERS)
 print(f"Stopped: {response.json()}")
 EOF
 ```
@@ -457,8 +470,10 @@ anomalies = []
 
 def handle_flow(flow):
     try:
-        response = requests.post('http://localhost:5001/detect', 
-                                json={'flow': flow}, timeout=5)
+        response = requests.post('http://localhost:5005/detect',
+                                json={'flow': flow},
+                                headers={'X-API-KEY': os.environ['INTERNAL_API_KEY']},
+                                timeout=5)
         if response.ok:
             result = response.json()
             if result.get('anomaly'):
@@ -493,7 +508,7 @@ echo "[3/3] Monitoring detection statistics..."
 sleep 3
 
 for i in {1..30}; do
-    curl -s http://localhost:5001/stream/status | python3 -m json.tool | grep -E "flows_processed|anomalies_detected|flows_per_second"
+    curl -s http://localhost:5005/stream/status | python3 -m json.tool | grep -E "flows_processed|anomalies_detected|flows_per_second"
     sleep 10
 done
 

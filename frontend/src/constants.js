@@ -92,9 +92,8 @@ export const INITIAL_CHAT_MESSAGE = {
 
 export const API_CONFIG = {
   BASE_URL: import.meta.env.VITE_API_URL || 'http://localhost:5005',
-  API_KEY: import.meta.env.VITE_API_KEY || '',
+  CREDENTIALS: 'include',
   HEADERS: {
-    'Content-Type': 'application/json',
-    'X-API-KEY': import.meta.env.VITE_API_KEY || ''
+    'Content-Type': 'application/json'
   }
 };

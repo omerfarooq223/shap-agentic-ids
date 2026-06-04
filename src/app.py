@@ -19,11 +19,13 @@ import time
 import threading
 import random
 import traceback
+import hmac
+from functools import wraps
 
 # Ensure project root is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -49,6 +51,12 @@ from src.services.rag_service import rag_service
 # ---------------------------------------------------------------------------
 
 app = Flask(__name__)
+app.config.update(
+    SECRET_KEY=config.SESSION_SECRET_KEY,
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=config.SESSION_COOKIE_SECURE,
+)
 
 # Configure CORS with specific origins (enforced in config.py)
 CORS(
@@ -61,6 +69,30 @@ CORS(
 )
 
 logger.info(f"✓ CORS configured for origin(s): {config.FRONTEND_ORIGIN}")
+
+
+def _is_authorized_request() -> bool:
+    expected = config.get_internal_api_key()
+    supplied = request.headers.get("X-API-KEY")
+    if supplied and expected and hmac.compare_digest(supplied, expected):
+        return True
+    return bool(session.get("authenticated"))
+
+
+def _unauthorized_response():
+    return jsonify({"error": "Unauthorized"}), 401
+
+
+def require_auth(view_func):
+    @wraps(view_func)
+    def wrapped(*args, **kwargs):
+        if request.method == "OPTIONS":
+            return jsonify({"status": "ok"}), 200
+        if not _is_authorized_request():
+            return _unauthorized_response()
+        return view_func(*args, **kwargs)
+
+    return wrapped
 
 # ---------------------------------------------------------------------------
 # Rate Limiting Setup
@@ -98,6 +130,7 @@ def initialize_system() -> bool:
     logger.info("=" * 80)
 
     try:
+        config.validate_runtime_config()
         inference_service.load()
         _agent = build_agent()
         alert_repo.load()
@@ -190,12 +223,49 @@ def status():
     ), 200
 
 
+@app.route("/api/v1/auth/session", methods=["GET"])
+@limiter.limit(config.RATE_LIMIT_HEALTH)
+def auth_session():
+    return jsonify({"authenticated": _is_authorized_request()}), 200
+
+
+@app.route("/api/v1/auth/login", methods=["POST", "OPTIONS"])
+@limiter.limit(config.RATE_LIMIT_TEST)
+def auth_login():
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
+
+    try:
+        body = request.get_json(force=True) or {}
+    except Exception:
+        return jsonify({"error": "Request body must be valid JSON"}), 400
+
+    supplied = body.get("api_key", "")
+    expected = config.get_internal_api_key()
+    if supplied and expected and hmac.compare_digest(str(supplied), expected):
+        session.clear()
+        session["authenticated"] = True
+        session["issued_at"] = time.time()
+        return jsonify({"authenticated": True}), 200
+
+    return _unauthorized_response()
+
+
+@app.route("/api/v1/auth/logout", methods=["POST", "OPTIONS"])
+def auth_logout():
+    if request.method == "OPTIONS":
+        return jsonify({"status": "ok"}), 200
+    session.clear()
+    return jsonify({"authenticated": False}), 200
+
+
 # ---------------------------------------------------------------------------
 # Core detection endpoint
 # ---------------------------------------------------------------------------
 
 @app.route("/detect", methods=["POST", "OPTIONS"])
 @limiter.limit(config.RATE_LIMIT_DETECT)
+@require_auth
 def detect():
     """
     POST /detect - Detect threats in a network flow.
@@ -207,7 +277,7 @@ def detect():
     4. Agentic reasoning (LLM + threat intelligence)
     
     Security:
-    - Requires X-API-KEY header with valid INTERNAL_API_KEY
+    - Requires a valid browser session or X-API-KEY header with INTERNAL_API_KEY
     - Rate limited to 100 requests/minute
     - Input features strictly validated against FEATURE_RANGES
     
@@ -245,15 +315,6 @@ def detect():
     if request.method == "OPTIONS":
         return jsonify({"status": "ok"}), 200
 
-    # Security: Ensure only authorized frontend can trigger detection
-    api_key = request.headers.get("X-API-KEY")
-    if not api_key:
-        logger.warning(f"Unauthorized /detect request (missing API key) from {request.remote_addr}")
-        return jsonify({"error": "Unauthorized: missing X-API-KEY header"}), 401
-    if api_key != config.get_internal_api_key():
-        logger.warning(f"Unauthorized /detect request (invalid API key) from {request.remote_addr}")
-        return jsonify({"error": "Unauthorized: invalid API key"}), 401
-
     if not ensure_system_initialized():
         return jsonify({"error": "System not initialized. Run 'python src/train.py' first."}), 503
 
@@ -267,7 +328,10 @@ def detect():
     except Exception:
         return jsonify({"error": "Request body must be valid JSON"}), 400
 
-    flow = req.flow.model_dump()
+    flow = req.flow.model_dump(by_alias=True)
+    raw_flow = body.get("flow") if isinstance(body.get("flow"), dict) else {}
+    if not any(key in raw_flow for key in ("Destination Port", "destination_port")):
+        flow["Destination Port"] = flow["dst_port"]
 
     logger.info(
         f"Processing flow {flow['src_ip']} → {flow['dst_ip']}:{flow['dst_port']}"
@@ -446,6 +510,7 @@ def detect():
 
 @app.route("/api/v1/alerts", methods=["GET"])
 @limiter.limit(config.RATE_LIMIT_HEALTH)
+@require_auth
 def get_alerts():
     return jsonify(alert_repo.get_all()), 200
 
@@ -456,6 +521,7 @@ def get_alerts():
 
 @app.route("/chat", methods=["POST", "OPTIONS"])
 @limiter.limit(config.RATE_LIMIT_CHAT)
+@require_auth
 def chat():
     """
     POST /chat - RAG-enabled forensic assistant (Groq LLM).
@@ -466,18 +532,6 @@ def chat():
 
     Response: {"response", "timestamp", "rag_sources": [{source, score}, ...]}
     """
-    if request.method == "OPTIONS":
-        return jsonify({}), 200
-
-    # Security: Prevent LLM proxy abuse
-    api_key = request.headers.get("X-API-KEY")
-    if not api_key:
-        logger.warning(f"Unauthorized /chat request (missing API key) from {request.remote_addr}")
-        return jsonify({"error": "Unauthorized: missing X-API-KEY header"}), 401
-    if api_key != config.get_internal_api_key():
-        logger.warning(f"Unauthorized /chat request (invalid API key) from {request.remote_addr}")
-        return jsonify({"error": "Unauthorized: invalid API key"}), 401
-
     try:
         body = request.get_json(force=True) or {}
         req = ChatRequest(**body)
@@ -539,12 +593,9 @@ Be technical but concise. Reference MITRE IDs and SHAP evidence when relevant.""
 
 @app.route("/api/test/malicious", methods=["POST"])
 @limiter.limit(config.RATE_LIMIT_TEST)
+@require_auth
 def trigger_malicious():
     """Injects a single highly detailed malicious SQL injection / APT signature."""
-    api_key = request.headers.get("X-API-KEY")
-    if not api_key or api_key != config.get_internal_api_key():
-        return jsonify({"error": "Unauthorized"}), 401
-    
     mock = {
         "id": int(time.time() * 1000),
         "timestamp": time.strftime("%I:%M:%S %p"),
@@ -583,12 +634,9 @@ def trigger_malicious():
 
 @app.route("/api/test/stress", methods=["POST"])
 @limiter.limit(config.RATE_LIMIT_TEST)
+@require_auth
 def trigger_stress_test():
     """Simulates a burst of malicious flows for dashboard testing."""
-    api_key = request.headers.get("X-API-KEY")
-    if not api_key or api_key != config.get_internal_api_key():
-        return jsonify({"error": "Unauthorized"}), 401
-
     def _burst():
         attack_types = ["DDoS", "Port-Scan", "Brute-Force", "Botnet"]
         for _ in range(10):
@@ -684,18 +732,12 @@ def get_benchmarks():
 
 @app.route("/api/v1/red-team/battle", methods=["POST", "OPTIONS"])
 @limiter.limit(config.RATE_LIMIT_TEST)
+@require_auth
 def run_red_team_battle():
     """
     POST /api/v1/red-team/battle - Trigger an autonomous adversarial battle.
     Returns the history of the battle (Attacker vs Defender).
     """
-    if request.method == "OPTIONS":
-        return jsonify({}), 200
-
-    api_key = request.headers.get("X-API-KEY")
-    if not api_key or api_key != config.get_internal_api_key():
-        return jsonify({"error": "Unauthorized"}), 401
-
     try:
         body = request.get_json(force=True) or {}
         iterations = body.get("iterations", 3)
@@ -712,10 +754,8 @@ def run_red_team_battle():
         return jsonify({"error": "Battle simulation failed", "details": str(e)}), 500
 
 @app.route("/api/v1/voice/persona", methods=["POST", "OPTIONS"])
+@require_auth
 def set_voice_persona():
-    if request.method == "OPTIONS":
-        return jsonify({}), 200
-        
     try:
         body = request.get_json(force=True) or {}
         persona = body.get("persona", "jarvis").lower()
@@ -728,10 +768,8 @@ def set_voice_persona():
         return jsonify({"error": str(e)}), 500
 
 @app.route("/api/v1/voice/toggle", methods=["POST", "OPTIONS"])
+@require_auth
 def toggle_voice_state():
-    if request.method == "OPTIONS":
-        return jsonify({}), 200
-        
     try:
         body = request.get_json(force=True) or {}
         enabled = body.get("enabled", False)
@@ -812,8 +850,10 @@ def _detection_callback(flow: dict) -> dict:
         return {"anomaly": False, "error": str(exc)}
 
 
-streaming_bp = create_streaming_blueprint(_detection_callback)
+streaming_bp = create_streaming_blueprint(_detection_callback, _is_authorized_request)
 app.register_blueprint(streaming_bp)
 
 
-
+def create_app() -> Flask:
+    """WSGI entrypoint helper for production servers."""
+    return app

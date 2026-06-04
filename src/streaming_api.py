@@ -14,7 +14,6 @@ Routes:
 from flask import Blueprint, request, jsonify, Response
 import logging
 from src import config
-from src.packet_capture import StreamingFlowProcessor, LivePacketCapture
 import json
 
 logger = logging.getLogger(__name__)
@@ -30,7 +29,7 @@ streaming_state = {
 }
 
 
-def create_streaming_blueprint(detect_callback):
+def create_streaming_blueprint(detect_callback, auth_checker=None):
     """
     Create Flask blueprint for streaming endpoints.
     
@@ -38,6 +37,14 @@ def create_streaming_blueprint(detect_callback):
         detect_callback: Function to call for each complete flow (e.g., ML detection)
     """
     streaming_bp = Blueprint('streaming', __name__, url_prefix='/stream')
+
+    @streaming_bp.before_request
+    def require_stream_auth():
+        if request.method == "OPTIONS" or auth_checker is None:
+            return None
+        if not auth_checker():
+            return jsonify({"error": "Unauthorized"}), 401
+        return None
     
     def flow_handler(flow):
         """Handle complete flow: run detection and update stats."""
@@ -66,6 +73,7 @@ def create_streaming_blueprint(detect_callback):
         
         try:
             import time
+            from src.packet_capture import StreamingFlowProcessor, LivePacketCapture
             
             # Create processor
             streaming_state['processor'] = StreamingFlowProcessor(flow_handler)
