@@ -2,9 +2,7 @@
 **SHAP-Explained Autonomous Network Defense Platform**
 
 **Author:** Muhammad Umar Farooq  
-**Date:** May 2026  
 **Project Scope:** AI-Driven Information Security  
-**Status:** Final Implementation (v2.5)
 
 ---
 
@@ -40,6 +38,11 @@ I evaluated the system across two heterogeneous datasets to ensure generalizatio
 
 ### 3.2 Comparison with Traditional IDS
 In my side-by-side benchmarking against a signature-based approach (Snort-style rules), the Agentic IDS showed a **61.88% improvement in accuracy** and a near-total elimination of false positives (dropping from 77.9% down to 0.7%).
+
+### 3.3 Baseline Classifier and Efficiency Comparison
+To make the model choice academically defensible, I added a baseline benchmark across Logistic Regression, GaussianNB, MultinomialNB, ComplementNB, Decision Tree, Random Forest, and optional XGBoost. The benchmark reports Accuracy, Precision, Recall, F1-Score, ROC-AUC, training time, inference latency per sample, peak training memory, serialized model size, and per-attack-class precision/recall/F1.
+
+The results confirm the expected tradeoff: lightweight baselines are faster and smaller, but Random Forest remains the best production model because it offers strong tabular IDS performance while supporting SHAP explanations. Detailed results are available in `docs/BASELINE_EFFICIENCY_COMPARISON.md`.
 
 ---
 

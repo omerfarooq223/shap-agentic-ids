@@ -1,8 +1,6 @@
 # Hybrid IDS Comparison Report
 ## Signature-Based vs ML-Based vs Agentic Intrusion Detection
-
-**Date:** 5 May 2026  
-**Status:** ✅ COMPLETE  
+ 
 **Datasets:** CICIDS2017 (6,000 test samples) + UNSW-NB15 (51,535 test samples)  
 
 ---
@@ -96,6 +94,22 @@ Machine learning models learn attack patterns from training data:
 - Analyzes 78-39 numerical features (packet sizes, rates, timing, flags)
 - Learns: "When these features have these values together, it's usually an attack"
 - Generalizes to unseen attack variants
+
+### Baseline Model Comparison
+
+The ML evaluation now includes classical baselines in addition to Random Forest:
+
+| Baseline | Why It Matters |
+|----------|----------------|
+| Logistic Regression | Fast linear benchmark with interpretable coefficients |
+| GaussianNB | Very small probabilistic baseline for continuous features |
+| MultinomialNB | Lightweight baseline for non-negative scaled features |
+| ComplementNB | Naive Bayes variant often stronger on imbalanced data |
+| Decision Tree | Transparent single-tree baseline |
+| Random Forest | Production model and SHAP-compatible ensemble |
+| XGBoost | Optional boosted-tree benchmark when installed |
+
+The benchmark also records training time, inference latency, peak training memory, and serialized model size. This shows where simple baselines are more efficient and where Random Forest earns its production role. See `docs/BASELINE_EFFICIENCY_COMPARISON.md` for the generated comparison.
 
 ### CICIDS2017 Performance
 

@@ -20,6 +20,36 @@ from datetime import datetime
 from src.config import logger
 
 
+def load_dataset(path: Path, max_rows: int = None):
+    """
+    Load a CICIDS2017 or UNSW-NB15-style CSV into numeric X and binary y.
+
+    This helper is intentionally lightweight for tests and evaluation scripts.
+    It does not perform feature translation; it simply extracts numeric columns
+    and normalizes the label into 0=benign/normal and 1=attack.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    df = pd.read_csv(path, nrows=max_rows)
+    if "Label" in df.columns:
+        y = (df["Label"].astype(str).str.lower() != "benign").astype(int)
+        X = df.drop(columns=["Label"], errors="ignore")
+    elif "label" in df.columns:
+        y = df["label"].astype(int)
+        X = df.drop(
+            columns=["id", "label", "attack_cat", "proto", "service", "state"],
+            errors="ignore",
+        )
+    else:
+        raise ValueError("Dataset must contain either 'Label' or 'label'.")
+
+    X = X.select_dtypes(include=[np.number]).replace([np.inf, -np.inf], np.nan)
+    X = X.fillna(X.median(numeric_only=True)).fillna(0)
+    return X, y
+
+
 class EvaluationMetrics:
     """Compute and track model performance metrics."""
 

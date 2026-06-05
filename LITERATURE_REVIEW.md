@@ -22,6 +22,8 @@ Ahmed et al. (2022) directly addressed this in their paper *"Network Intrusion D
 
 Sharafaldin et al. (UNB, 2018) published the CICIDS2017 dataset paper, the gold standard benchmark for IDS research. Their dataset contains 2.8 million flows across 14 attack categories (DDoS, brute-force, infiltration, etc.). Critically, they reported **baseline detection rates**: Snort achieved 80% detection on their dataset; a simple Random Forest with proper class weighting achieved 95%+. This validates ML-based detection as viable.
 
+For a fair IDS study, aggregate binary metrics are not enough. Classical baselines such as Logistic Regression, Naive Bayes variants, Decision Tree, Random Forest, and boosted trees help separate "accuracy" from "operational efficiency." A lightweight model may train faster and serialize to a tiny footprint, while an ensemble may produce stronger F1 and ROC-AUC. We therefore report both predictive metrics and efficiency metrics, and we also include per-attack-class precision/recall/F1 so rare attack families are not hidden inside a strong weighted average.
+
 ---
 
 ## 3. EXPLAINABILITY IN ML SECURITY SYSTEMS: SHAP & Feature Attribution

@@ -14,16 +14,20 @@ The ML model is primarily trained on the CICIDS2017 dataset.
 
 ## 2. Cross-Evaluation Dataset: UNSW-NB15
 
-To prove the Random Forest model has learned generalizable network anomaly features rather than just memorizing the CICIDS2017 dataset, we use the UNSW-NB15 dataset for out-of-distribution evaluation.
+To prove the Random Forest model has learned generalizable network anomaly features rather than just memorizing the CICIDS2017 dataset, we use the UNSW-NB15 dataset for out-of-distribution evaluation and per-attack-class reporting.
 
 **Setup Instructions:**
-1. **Download**: Obtain the UNSW-NB15 dataset (specifically the `UNSW_NB15_testing-set.csv` or `UNSW_NB15_training-set.csv`) from the official [UNSW Canberra Cyber page](https://research.unsw.edu.au/projects/unsw-nb15-dataset).
-2. **Placement**: Save the downloaded CSV file as `UNSW_NB15.csv` in the `data/` directory of this project (`data/UNSW_NB15.csv`).
-3. **Feature Mapping (Critical Step)**:
-   UNSW-NB15 uses different column names and structures than CICIDS2017 (e.g., `sbytes` instead of `Total Length of Fwd Packets`).
-   Before running the evaluation script, you must map the UNSW-NB15 columns to match the 78 `NUMERIC_FEATURES` defined in `src/config.py`.
-   - *Note: A preprocessing script `src/hybrid_ids_comparison.py` handles this mapping before feeding it to `data_loader.load_unsw_nb15()`.*
-4. **Validation**: Run the pipeline. `data_loader.py` will automatically trigger `validate_schema()` to ensure your mapped UNSW-NB15 dataset exactly matches the expected inference format.
+1. **Download**: Obtain `UNSW_NB15_training-set.csv` and `UNSW_NB15_testing-set.csv` from the official [UNSW Canberra Cyber page](https://research.unsw.edu.au/projects/unsw-nb15-dataset).
+2. **Placement**: Save both files in `data/`.
+3. **Run evaluation**:
+   ```bash
+   python scripts/run_evaluation.py
+   ```
+4. **Generated outputs**:
+   - `docs/BASELINE_EFFICIENCY_COMPARISON.md`
+   - `docs/baseline_efficiency_results.json`
+
+The evaluation script compares Logistic Regression, GaussianNB, MultinomialNB, ComplementNB, Decision Tree, Random Forest, and optional XGBoost. It also computes Random Forest per-attack-class precision, recall, F1, and support for CICIDS2017 labels and UNSW-NB15 `attack_cat` families.
 
 ## Troubleshooting Missing Data
 

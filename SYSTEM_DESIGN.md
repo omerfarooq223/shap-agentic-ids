@@ -1,9 +1,6 @@
 # SYSTEM DESIGN DOCUMENT: SHAP-EXPLAINED AGENTIC IDS
 
 **Project:** SHAP-Explained Agentic Intrusion Detection System  
-**Student:** Muhammad Umar Farooq
-**Course:** AI-374 | Information Security  
-**Date:** Week 5-6
 
 ---
 
@@ -183,6 +180,31 @@ predictions = (probs[:, 1] > 0.5).astype(int)
 - Specificity (TNR): % of benign flows correctly allowed
 - Precision: Of flagged flows, % that are true attacks
 - Recall/F1-Score: Balance both
+- ROC-AUC: Threshold-independent discrimination quality
+
+---
+
+### 4.3.4 Baseline Classifier and Efficiency Benchmarking
+
+The production inference path remains Random Forest because it performs strongly on tabular IDS features and is compatible with SHAP TreeExplainer. For academic validation, the evaluation harness now trains and compares multiple baseline classifiers:
+
+- Logistic Regression
+- GaussianNB
+- MultinomialNB
+- ComplementNB
+- Decision Tree
+- Random Forest
+- XGBoost, when the optional `xgboost` package is installed
+
+The benchmark reports both detection quality and operational efficiency:
+
+- Accuracy, Precision, Recall, F1-Score, ROC-AUC, TPR, FPR
+- Training time
+- Inference latency per sample
+- Peak training memory
+- Serialized model size
+
+This makes the tradeoff explicit: Logistic Regression and Naive Bayes are fast and tiny, while Random Forest generally gives stronger IDS accuracy and SHAP-compatible explanations. The generated artifacts are `docs/BASELINE_EFFICIENCY_COMPARISON.md` and `docs/baseline_efficiency_results.json`.
 
 ---
 

@@ -68,6 +68,8 @@ For a more detailed, text-first breakdown of the architecture, see [docs/SYSTEM_
 *   **Live Threat Intelligence:** Automated IP reputation checks via **AbuseIPDB** and automated mapping to **MITRE ATT&CK** tactics and techniques.
 *   **Real Packet Capture & Streaming API:** Native Scapy-based sniffer (`packet_capture.py`) for live interface capture, coupled with a highly concurrent REST Streaming API (`streaming_api.py`) for continuous line-rate packet analysis.
 *   **Real Snort/Suricata Comparison:** Integrated side-by-side behavioral forensic lab (`snort_comparison.py`) to benchmark the LLM Agent against traditional signature-based rules (addresses Tier S requirement).
+*   **Baseline Classifier & Efficiency Benchmarking:** `scripts/run_evaluation.py` compares Logistic Regression, GaussianNB, MultinomialNB, ComplementNB, Decision Tree, Random Forest, and optional XGBoost using Accuracy, Precision, Recall, F1, ROC-AUC, training time, inference latency, peak training memory, serialized model size, and per-attack-class metrics.
+*   **Forensic Lab Reporting:** The React Forensic Lab displays Snort/Suricata comparison, model baseline leaderboards, efficiency tradeoffs, and per-attack-class Random Forest diagnostics from the generated benchmark report.
 *   **Real-time SOC Dashboard:** A premium React-based interface featuring a 3D threat globe, RAG-powered forensic chat, and high-density telemetry.
 *   **Voice-Driven Security Assistant:** Integrated audible alert system using both backend (macOS `say`) and frontend (Web Speech API) synthesis to provide hands-free threat reporting for SOC analysts.
 *   **Empirical Cross-Dataset Validation:** System performance is rigorously tested across heterogeneous datasets (CICIDS2017 & UNSW-NB15) to ensure model generalization and robustness against novel attack patterns.
@@ -141,6 +143,9 @@ To generate the empirical data for the Forensic Lab:
 ```bash
 python scripts/run_evaluation.py
 ```
+This writes the baseline/efficiency comparison to `docs/BASELINE_EFFICIENCY_COMPARISON.md` and `docs/baseline_efficiency_results.json`.
+
+For generating updated slides, see `docs/NOTEBOOKLM_SLIDE_SOURCES.md`.
 
 ### 4. Autonomous Red Teaming (Adversarial Battle)
 To run the multi-agent battle (Attacker vs Defender):
@@ -199,7 +204,7 @@ IS Project/
 │   │   └── App.jsx         # Main React App Core & Routing
 │   └── package.json        # Frontend deps (`npm run test` — Vitest + Testing Library)
 ├── scripts/                # Research, Utilities & Report Scripts
-│   ├── run_evaluation.py   # Cross-Dataset Benchmarking & Model Scorer
+│   ├── run_evaluation.py   # Cross-Dataset Baseline + Efficiency Benchmarking
 │   └── red_team_battle.py  # Autonomous Adversarial Loop Engine (New)
 ├── tests/                  # Pytest Unit & Integration Testing Suite
 │   ├── test_flask_api.py   # System API Endpoint Checks
@@ -240,5 +245,4 @@ IS Project/
 ---
 
 **Developed by:** Muhammad Umar Farooq  
-**Academic Context:** AI-374 Information Security (2026)  
 **License:** MIT

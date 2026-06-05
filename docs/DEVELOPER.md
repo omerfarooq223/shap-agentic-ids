@@ -95,6 +95,21 @@ curl -b cookies.txt http://localhost:5005/api/v1/alerts
 
 Frontend tests mock `/api/v1/auth/session` in `frontend/src/tests/App.test.jsx`; run with `cd frontend && npm run test`.
 
+## Updating Evaluation Benchmarks
+
+Run the benchmark harness whenever model comparisons or slide/report numbers need refreshing:
+
+```bash
+python scripts/run_evaluation.py
+```
+
+The script writes:
+
+- `docs/BASELINE_EFFICIENCY_COMPARISON.md`
+- `docs/baseline_efficiency_results.json`
+
+The Flask endpoint `GET /api/metrics/benchmarks` reads these files and exposes the results to the Forensic Lab frontend. The response includes baseline classifier performance, efficiency metrics, and Random Forest per-attack-class precision/recall/F1.
+
 ---
 
 ## Troubleshooting Common Agent Issues

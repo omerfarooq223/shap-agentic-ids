@@ -1322,6 +1322,11 @@ body {
   font-weight: 600;
 }
 
+.compact-table th,
+.compact-table td {
+  padding: var(--space-md);
+}
+
 .metrics-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1369,11 +1374,54 @@ body {
   letter-spacing: 0.5px;
 }
 
-.metric-info value {
+.metric-info .val {
   font-family: var(--font-mono);
   font-size: 14px;
   font-weight: 800;
   color: var(--accent-primary);
+  line-height: 1.35;
+}
+
+.benchmark-cards .metric-card {
+  min-height: 86px;
+}
+
+.class-summary-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+}
+
+.methodology-card {
+  background: rgba(13, 159, 255, 0.05);
+  border: 1px solid rgba(13, 159, 255, 0.1);
+  border-radius: var(--radius-sm);
+  padding: var(--space-xl);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.methodology-card p {
+  margin-bottom: var(--space-md);
+}
+
+.source-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
+.source-tag {
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  background: rgba(13, 159, 255, 0.1);
+  color: var(--accent-primary);
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
 }
 
 .accuracy-items {

@@ -17,6 +17,7 @@ I use **Scapy** for real-time packet sniffing on specified network interfaces.
 This is the "brain" of the system where raw data becomes security intelligence.
 *   **ML Detection**: A Random Forest classifier trained on the CICIDS2017 dataset. I've optimized this model to handle severe class imbalance using SMOTE.
 *   **SHAP Explainer**: If a flow is flagged, the system immediately runs a SHAP TreeExplainer. This provides the mathematical proof (feature attribution) for why the model made its decision.
+*   **Baseline Benchmark Harness**: The evaluation layer compares Random Forest against Logistic Regression, GaussianNB, MultinomialNB, ComplementNB, Decision Tree, and optional XGBoost. This does not replace the production detector; it provides academic evidence for model selection and quantifies efficiency tradeoffs.
 
 ### 3. The LangGraph Agentic Pipeline
 This is where the system "reasons" about the findings. I built this using **LangGraph** to ensure a structured, state-aware decision loop:
@@ -85,4 +86,5 @@ My goal was to balance deep reasoning with operational speed:
 *   **ML Latency**: ~50ms (Ideal for high-throughput filtering)
 *   **Agent Latency**: ~1.2s (Acceptable for forensic deep-dives, bypassed via Graceful Degradation under severe load)
 *   **Resource Usage**: Optimized to run on consumer hardware (M2 Air) by leveraging external API inference.
+*   **Baseline Efficiency Metrics**: `scripts/run_evaluation.py` records training time, inference latency per sample, peak training memory, and serialized model size for each baseline classifier. Results are written to `docs/BASELINE_EFFICIENCY_COMPARISON.md`.
 *   **Out-of-Scope Payloads**: 12-feature flow statistics cannot read packet data contents. Deeply embedded payloads (RCE, SQLi, malware text) are purposefully ignored in v1 format, relying strictly on heuristic flow geometry for detection. Future enhancements will involve multimodal DPI payload injection into the LLM.

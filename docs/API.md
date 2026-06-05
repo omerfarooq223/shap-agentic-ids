@@ -128,7 +128,13 @@ Live packet pipeline (see [PACKET_CAPTURE_GUIDE.md](PACKET_CAPTURE_GUIDE.md)).
 |----------|------|---------|
 | `GET /health` | No | Connectivity and model readiness |
 | `GET /status` | No | Component-level status |
-| `GET /api/metrics/benchmarks` | No | Forensic lab comparison metrics |
+| `GET /api/metrics/benchmarks` | No | Forensic lab comparison metrics, baseline classifier efficiency, and per-attack-class results |
+
+`GET /api/metrics/benchmarks` returns the legacy Snort/Suricata comparison plus generated research artifacts when `python scripts/run_evaluation.py` has been run:
+
+- `baseline_efficiency`: Logistic Regression, GaussianNB, MultinomialNB, ComplementNB, Decision Tree, Random Forest, and optional XGBoost metrics.
+- `per_attack_class`: Random Forest precision, recall, F1, and support for each attack family.
+- `baseline_generated_at`: timestamp of the generated benchmark report.
 
 ---
 
@@ -153,3 +159,4 @@ On Apple M2-class hardware (indicative):
 - **ML prediction:** &lt; 50 ms
 - **Full agentic pipeline:** ~800–1500 ms (Groq latency)
 - **Production serving:** `gunicorn -c gunicorn.conf.py` via `wsgi:application`
+- **Research benchmark output:** `docs/BASELINE_EFFICIENCY_COMPARISON.md` and `docs/baseline_efficiency_results.json`

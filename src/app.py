@@ -713,12 +713,21 @@ def trigger_stress_test():
 def get_benchmarks():
     import json
     from pathlib import Path
+
+    baseline_report = {}
+    baseline_path = Path("docs/baseline_efficiency_results.json")
+    if baseline_path.exists():
+        try:
+            with open(baseline_path, "r", encoding="utf-8") as f:
+                baseline_report = json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to read baseline efficiency results: {e}")
     
     # Try to load real metrics from the evaluation script output
     results_path = Path("docs/evaluation_results.json")
     if results_path.exists():
         try:
-            with open(results_path, "r") as f:
+            with open(results_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             
             # The structure from EvaluationMetrics
@@ -736,7 +745,10 @@ def get_benchmarks():
                     "suricata": [0.85, 0.79, 0.82],   # Legacy baseline for comparison
                     "source": "Empirical Research Run",
                     "tpr": cicids_metrics.get("tpr", 0.0),
-                    "fpr": cicids_metrics.get("fpr", 0.0)
+                    "fpr": cicids_metrics.get("fpr", 0.0),
+                    "baseline_efficiency": baseline_report.get("results", []),
+                    "per_attack_class": baseline_report.get("per_attack_class", []),
+                    "baseline_generated_at": baseline_report.get("timestamp"),
                 }), 200
         except Exception as e:
             logger.error(f"Failed to read evaluation results: {e}")
@@ -749,7 +761,10 @@ def get_benchmarks():
         "suricata": [0.85, 0.79, 0.82],
         "source": "EVALUATION NOT RUN - Run scripts/run_evaluation.py",
         "tpr": 0.0,
-        "fpr": 0.0
+        "fpr": 0.0,
+        "baseline_efficiency": baseline_report.get("results", []),
+        "per_attack_class": baseline_report.get("per_attack_class", []),
+        "baseline_generated_at": baseline_report.get("timestamp"),
     }), 200
 
 

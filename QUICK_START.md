@@ -253,14 +253,22 @@ graph TD
 
 ## Cross-Dataset Evaluation
 
-To verify the model's generalization (Addressing Instructor Critique #4):
+To verify model generalization and compare baseline efficiency:
 
-1. **Place UNSW-NB15 dataset** in `data/UNSW_NB15.csv`.
+1. **Place UNSW-NB15 datasets** in `data/`:
+   - `data/UNSW_NB15_training-set.csv`
+   - `data/UNSW_NB15_testing-set.csv`
 2. **Run the evaluation script**:
    ```bash
    python scripts/run_evaluation.py
    ```
-3. The `data_loader.py` will automatically apply the **Feature Translation Layer** to map UNSW features to the CICIDS model format.
+3. **Review the generated reports**:
+   - `docs/BASELINE_EFFICIENCY_COMPARISON.md`
+   - `docs/baseline_efficiency_results.json`
+
+The benchmark compares Logistic Regression, GaussianNB, MultinomialNB, ComplementNB, Decision Tree, Random Forest, and optional XGBoost. It reports Accuracy, Precision, Recall, F1, ROC-AUC, training time, inference latency, peak training memory, and model size.
+
+For updated presentation generation, use `docs/NOTEBOOKLM_SLIDE_SOURCES.md` as the upload checklist and prompt guide.
 
 ---
 

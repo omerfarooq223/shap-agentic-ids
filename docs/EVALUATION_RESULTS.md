@@ -1,8 +1,6 @@
 # Cross-Dataset Evaluation Results
 ## Agentic IDS - CICIDS2017 vs UNSW-NB15
 
-**Date:** May 2026  
-**Status:** ✅ COMPLETE  
 **Models Evaluated:** Random Forest Classifier (100 estimators)  
 **Total Test Samples:** 57,535  
 
@@ -16,6 +14,25 @@ I have validated the models on both CICIDS2017 and UNSW-NB15 datasets to ensure 
 - **UNSW-NB15**: 95.14% accuracy, 96.02% attack detection, 6.44% false alarm rate
 
 Both models show **excellent performance** (F1 > 0.96), confirming that machine learning is highly effective for intrusion detection when properly tuned.
+
+### Baseline and Efficiency Extension
+
+The evaluation framework now includes a separate baseline benchmark that compares:
+
+- Logistic Regression
+- GaussianNB
+- MultinomialNB
+- ComplementNB
+- Decision Tree
+- Random Forest
+- XGBoost, when optionally installed
+
+In addition to Accuracy, Precision, Recall, F1-Score, and ROC-AUC, the benchmark records **training time**, **inference latency per sample**, **peak training memory**, and **serialized model size**. It also reports **per-attack-class precision, recall, F1, and support** using the Random Forest detector so weak attack families are visible instead of hidden inside binary averages. The generated outputs are:
+
+- `docs/BASELINE_EFFICIENCY_COMPARISON.md`
+- `docs/baseline_efficiency_results.json`
+
+The verification run shows the expected research tradeoff: Logistic Regression and Naive Bayes are extremely fast and small, Decision Tree is a strong transparent baseline, and Random Forest remains the best production fit because it combines high tabular IDS performance with SHAP-compatible explainability.
 
 ---
 

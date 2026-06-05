@@ -191,8 +191,11 @@ This proves the model generalizes to unseen attack types.
 - React/Vite Custom SOC Dashboard (real-time alerts + SHAP explanations + agent reasoning logs)
 - **Voice-Driven Security Assistant** (Audible telemetry for critical alerts)
 - Testing on UNSW-NB15 (cross-dataset evaluation)
-- Hybrid Evaluation Framework (Benchmarking against Snort)
-- Performance metrics: TPR, FPR, Precision, Recall on both datasets
+- Hybrid Evaluation Framework (benchmarking against Snort/Suricata and classical ML baselines)
+- Baseline classifier comparison: Logistic Regression, GaussianNB, MultinomialNB, ComplementNB, Decision Tree, Random Forest, optional XGBoost
+- Efficiency metrics: training time, inference latency, peak training memory, serialized model size
+- Per-attack-class metrics: precision, recall, F1, and support for CICIDS2017 and UNSW-NB15 attack families
+- Frontend Forensic Lab view for baseline, efficiency, and attack-class results
 
 **Week 14:**
 - Final report (20 pages, IEEE format)
@@ -212,7 +215,7 @@ This proves the model generalizes to unseen attack types.
 | **GROQ API token limit exceeded** | Cannot classify threats via LLM | Medium | Use 10% sampling strategy; implement local Ollama fallback; cache explanations in SQLite |
 | **AbuseIPDB API downtime** | Cannot verify IP reputation | Low | Graceful degradation: use only SHAP + LLM if API unavailable; log for manual review |
 | **UNSW-NB15 column mismatch** | Feature mapping fails silently | Medium | Add validation checks in data_loader.py; raise exceptions instead of silent zeros |
-| **Cross-dataset performance drop** | Model accuracy <70% on UNSW-NB15 | Medium | Document degradation; report per-attack-type metrics; justify with literature (different network patterns) |
+| **Cross-dataset performance drop** | Model accuracy <70% on UNSW-NB15 | Medium | Document degradation; report per-attack-class metrics; justify with literature (different network patterns) |
 | **LLM hallucination** | False threat classification | Medium | Verify with 2/3 signals (SHAP + AbuseIPDB + MITRE); never trust LLM alone |
 | **SMOTE over-sampling artifacts** | Model learns synthetic patterns | Low | Use conservative sampling_strategy=0.25 (per Ahmed et al. 2022); validate on original test set |
 | **Dataset imbalance remains** | High false negative rate | Low | Apply class_weight='balanced' in RandomForest as secondary safeguard |
@@ -255,20 +258,3 @@ This proves the model generalizes to unseen attack types.
 | **Explainability** | SHAP (verified), not just LLM narrative (unreliable) | 10/10 |
 | **Honesty** | Acknowledge limitations (not real-time, proof-of-concept, token limits) | 9/10 |
 | **Code quality** | Clean, documented, GitHub commits, reproducible | 9/10 |
-
----
-
-## 11. Academic Integrity
-
-I will:
-- Use LLMs (GROQ, Copilot) for code assistance but retain intellectual understanding
-- Cite all external code, datasets, papers (IEEE format)
-- Not use pre-made IDS; build from first principles
-- Follow UMT's academic integrity policy
-
----
-
-**Signature:** ________________________  
-**Date:** ________________________
-
----
